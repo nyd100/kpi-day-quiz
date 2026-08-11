@@ -159,7 +159,7 @@ function HostPage() {
   }
 
   const stats = question
-    ? computeStatistics(answers, players.length, question.answers.map((a) => a.id))
+    ? computeStatistics(answers, players.length, (session?.revealed_answer_id as AnswerId | null) ?? null)
     : null;
 
   return (
