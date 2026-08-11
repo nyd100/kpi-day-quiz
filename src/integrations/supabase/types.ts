@@ -14,7 +14,275 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      game_answers: {
+        Row: {
+          answer_id: string
+          awarded_score: number
+          id: string
+          is_correct: boolean
+          player_id: string
+          question_id: number
+          response_ms: number
+          session_id: string
+          submitted_at: string
+        }
+        Insert: {
+          answer_id: string
+          awarded_score?: number
+          id?: string
+          is_correct?: boolean
+          player_id: string
+          question_id: number
+          response_ms?: number
+          session_id: string
+          submitted_at?: string
+        }
+        Update: {
+          answer_id?: string
+          awarded_score?: number
+          id?: string
+          is_correct?: boolean
+          player_id?: string
+          question_id?: number
+          response_ms?: number
+          session_id?: string
+          submitted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_answers_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "game_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_answers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "game_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_host_secrets: {
+        Row: {
+          created_at: string
+          host_secret_hash: string
+          session_id: string
+        }
+        Insert: {
+          created_at?: string
+          host_secret_hash: string
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          host_secret_hash?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_host_secrets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "game_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_player_secrets: {
+        Row: {
+          player_id: string
+          player_secret_hash: string
+        }
+        Insert: {
+          player_id: string
+          player_secret_hash: string
+        }
+        Update: {
+          player_id?: string
+          player_secret_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_player_secrets_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: true
+            referencedRelation: "game_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_players: {
+        Row: {
+          correct_count: number
+          cumulative_response_ms: number
+          display_name: string
+          id: string
+          is_virtual: boolean
+          joined_at: string
+          last_seen_at: string
+          normalized_name: string
+          session_id: string
+          total_score: number
+        }
+        Insert: {
+          correct_count?: number
+          cumulative_response_ms?: number
+          display_name: string
+          id?: string
+          is_virtual?: boolean
+          joined_at?: string
+          last_seen_at?: string
+          normalized_name: string
+          session_id: string
+          total_score?: number
+        }
+        Update: {
+          correct_count?: number
+          cumulative_response_ms?: number
+          display_name?: string
+          id?: string
+          is_virtual?: boolean
+          joined_at?: string
+          last_seen_at?: string
+          normalized_name?: string
+          session_id?: string
+          total_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_players_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "game_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_sessions: {
+        Row: {
+          allow_late_join: boolean
+          created_at: string
+          current_question_index: number
+          expires_at: string
+          id: string
+          phase: string
+          pin: string
+          question_ends_at: string | null
+          question_started_at: string | null
+          revealed_answer_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          allow_late_join?: boolean
+          created_at?: string
+          current_question_index?: number
+          expires_at?: string
+          id?: string
+          phase?: string
+          pin: string
+          question_ends_at?: string | null
+          question_started_at?: string | null
+          revealed_answer_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          allow_late_join?: boolean
+          created_at?: string
+          current_question_index?: number
+          expires_at?: string
+          id?: string
+          phase?: string
+          pin?: string
+          question_ends_at?: string | null
+          question_started_at?: string | null
+          revealed_answer_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      question_keys_private: {
+        Row: {
+          correct_answer_id: string
+          explanation: string | null
+          question_id: number
+        }
+        Insert: {
+          correct_answer_id: string
+          explanation?: string | null
+          question_id: number
+        }
+        Update: {
+          correct_answer_id?: string
+          explanation?: string | null
+          question_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_keys_private_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: true
+            referencedRelation: "questions_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      questions_public: {
+        Row: {
+          answer_a: string
+          answer_b: string
+          answer_c: string
+          answer_d: string
+          category: string
+          duration_seconds: number
+          executive_insight: string | null
+          id: number
+          is_placeholder: boolean
+          pair_id: number | null
+          scoring_mode: string
+          subtitle: string | null
+          title: string
+        }
+        Insert: {
+          answer_a: string
+          answer_b: string
+          answer_c: string
+          answer_d: string
+          category: string
+          duration_seconds: number
+          executive_insight?: string | null
+          id: number
+          is_placeholder?: boolean
+          pair_id?: number | null
+          scoring_mode?: string
+          subtitle?: string | null
+          title: string
+        }
+        Update: {
+          answer_a?: string
+          answer_b?: string
+          answer_c?: string
+          answer_d?: string
+          category?: string
+          duration_seconds?: number
+          executive_insight?: string | null
+          id?: number
+          is_placeholder?: boolean
+          pair_id?: number | null
+          scoring_mode?: string
+          subtitle?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
