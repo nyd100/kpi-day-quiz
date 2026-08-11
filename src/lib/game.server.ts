@@ -194,25 +194,32 @@ export async function hostCommandImpl(input: {
     case "ADVANCE": {
       const next = nextTransition(session.phase, session.current_question_index);
       if (!next) throw new GameError("INVALID_TRANSITION", "המשחק כבר הסתיים.");
-      const patch: Record<string, unknown> = {
+      const patch: {
+        phase: string;
+        current_question_index: number;
+        updated_at: string;
+        question_started_at?: string | null;
+        question_ends_at?: string | null;
+        revealed_answer_id?: string | null;
+      } = {
         phase: next.phase,
         current_question_index: next.questionIndex,
         updated_at: new Date().toISOString(),
       };
       if (next.phase === "QUESTION_INTRO") {
-        patch['question_started_at'] = null;
-        patch['question_ends_at'] = null;
-        patch['revealed_answer_id'] = null;
+        patch.question_started_at = null;
+        patch.question_ends_at = null;
+        patch.revealed_answer_id = null;
       }
       if (next.phase === "QUESTION_ACTIVE") {
         const question = await loadQuestion(next.questionIndex);
         const now = Date.now();
-        patch['question_started_at'] = new Date(now).toISOString();
-        patch['question_ends_at'] = new Date(now + question.duration_seconds * 1000).toISOString();
-        patch['revealed_answer_id'] = null;
+        patch.question_started_at = new Date(now).toISOString();
+        patch.question_ends_at = new Date(now + question.duration_seconds * 1000).toISOString();
+        patch.revealed_answer_id = null;
       }
       if (next.phase === "SHOW_RESULTS") {
-        patch['revealed_answer_id'] = await loadKey(next.questionIndex);
+        patch.revealed_answer_id = await loadKey(next.questionIndex);
       }
       // Guard against double progression from two simultaneous clicks.
       const { data, error } = await supabaseAdmin
@@ -282,7 +289,12 @@ export async function hostCommandImpl(input: {
         .select("normalized_name")
         .eq("session_id", session.id);
       const taken = new Set((existing ?? []).map((p) => p.normalized_name));
-      const rows: Record<string, unknown>[] = [];
+      const rows: {
+        session_id: string;
+        display_name: string;
+        normalized_name: string;
+        is_virtual: boolean;
+      }[] = [];
       let n = 1;
       while (rows.length < count && n < count * 40) {
         const base = BOT_FIRST_NAMES[n % BOT_FIRST_NAMES.length]!;
