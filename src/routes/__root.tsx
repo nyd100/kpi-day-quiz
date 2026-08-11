@@ -76,18 +76,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ממספרים לאימפקט – חידון חי" },
+      { title: "ממספרים לאימפקט – כניסה למשחק" },
       {
         name: "description",
-        content: "חידון אינטראקטיבי בזמן אמת לאירוע סיכום חציון א' 2026.",
+        content: "הצטרפו לחידון החי של סיכום חציון א' 2026 באמצעות קוד משחק בן ארבע ספרות.",
       },
-      { property: "og:title", content: "ממספרים לאימפקט – חידון חי" },
+      { property: "og:title", content: "ממספרים לאימפקט – כניסה למשחק" },
       {
         property: "og:description",
-        content: "חידון אינטראקטיבי בזמן אמת לאירוע סיכום חציון א' 2026.",
+        content: "הצטרפו לחידון החי של סיכום חציון א' 2026 באמצעות קוד משחק בן ארבע ספרות.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "ממספרים לאימפקט – כניסה למשחק" },
+      { name: "twitter:description", content: "הצטרפו לחידון החי של סיכום חציון א' 2026 באמצעות קוד משחק בן ארבע ספרות." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/077441fb25a140c1c92c0d92f0e25837/id-preview-f3b6222a--d76cdc1b-5410-4a29-835b-731681f34a72.lovable.app-1786450892695.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/077441fb25a140c1c92c0d92f0e25837/id-preview-f3b6222a--d76cdc1b-5410-4a29-835b-731681f34a72.lovable.app-1786450892695.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
