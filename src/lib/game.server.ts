@@ -186,7 +186,7 @@ export async function hostCommandImpl(input: {
   sessionId: string;
   hostSecret: string;
   action: HostAction;
-  count?: number;
+  count?: number | undefined;
 }) {
   const session = await assertHost(input.sessionId, input.hostSecret);
 
