@@ -129,10 +129,7 @@ function JoinPage() {
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          מנחים?{" "}
-          <Link to="/host" className="font-semibold text-primary underline-offset-4 hover:underline">
-            מסך הנחיה
-          </Link>
+          המתינו להוראות המנחה על המסך הגדול.
         </p>
       </div>
     </main>
