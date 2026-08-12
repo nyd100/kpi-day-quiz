@@ -27,6 +27,7 @@ export type QuizQuestion = {
   scoringMode: ScoringMode;
   executiveInsight: string | null;
   isPlaceholder: boolean;
+  imageUrl: string | null;
 };
 
 export type SessionRow = {
