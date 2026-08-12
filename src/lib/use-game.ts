@@ -68,6 +68,7 @@ export function useQuestions() {
             scoringMode: q.scoring_mode as QuizQuestion["scoringMode"],
             executiveInsight: q.executive_insight,
             isPlaceholder: q.is_placeholder,
+            imageUrl: (q as { image_url: string | null }).image_url ?? null,
           })),
         );
       });

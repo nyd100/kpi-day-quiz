@@ -8,14 +8,6 @@ export const getServerTime = createServerFn({ method: "GET" }).handler(async () 
   return { now: Date.now() };
 });
 
-export const createGame = createServerFn({ method: "POST" }).handler(async () => {
-  const { createGameImpl, GameError } = await import("./game.server");
-  try {
-    return await createGameImpl();
-  } catch (error) {
-    throw new Error(error instanceof GameError ? error.message : "יצירת המשחק נכשלה.");
-  }
-});
 
 export const verifyHost = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
