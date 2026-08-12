@@ -245,6 +245,7 @@ export type Database = {
           duration_seconds: number
           executive_insight: string | null
           id: number
+          image_url: string | null
           is_placeholder: boolean
           pair_id: number | null
           scoring_mode: string
@@ -260,6 +261,7 @@ export type Database = {
           duration_seconds: number
           executive_insight?: string | null
           id: number
+          image_url?: string | null
           is_placeholder?: boolean
           pair_id?: number | null
           scoring_mode?: string
@@ -275,6 +277,7 @@ export type Database = {
           duration_seconds?: number
           executive_insight?: string | null
           id?: number
+          image_url?: string | null
           is_placeholder?: boolean
           pair_id?: number | null
           scoring_mode?: string
