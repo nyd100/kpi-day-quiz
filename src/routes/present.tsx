@@ -292,13 +292,20 @@ function PresentPage() {
       )}
 
       <footer className="surface-card flex flex-wrap items-center gap-2 p-3">
-        <button
-          onClick={() => void run("ADVANCE")}
-          disabled={busy || session?.phase === "GAME_COMPLETE"}
-          className="h-12 flex-1 rounded-xl bg-gradient-accent px-6 font-bold text-primary-foreground disabled:opacity-50"
-        >
-          המשך ←
-        </button>
+        {(() => {
+          const step = session
+            ? nextAction(session.phase, session.current_question_index, totalQuestions)
+            : null;
+          return (
+            <button
+              onClick={() => step && void run(step.action)}
+              disabled={busy || !step}
+              className="h-12 flex-1 rounded-xl bg-gradient-accent px-6 font-bold text-primary-foreground disabled:opacity-50"
+            >
+              {step ? `${step.label} ←` : "המשחק הסתיים"}
+            </button>
+          );
+        })()}
         <button
           onClick={() => void run("LOCK")}
           disabled={busy || session?.phase !== "QUESTION_ACTIVE"}
@@ -306,6 +313,13 @@ function PresentPage() {
         >
           נעילת שאלה
         </button>
+        <button
+          onClick={() => void toggleSound()}
+          className="h-12 rounded-xl border border-input px-4 text-sm font-semibold"
+        >
+          {sound ? "🔊 צלילים פעילים" : "🔇 הפעלת צלילים"}
+        </button>
+
         <button
           onClick={() => void run("ADD_BOTS", 10)}
           disabled={busy}
