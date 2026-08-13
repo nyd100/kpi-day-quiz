@@ -218,13 +218,24 @@ export async function createGameImpl() {
 }
 
 export type HostAction =
-  | "ADVANCE"
+  | GameAction
   | "LOCK"
   | "RESET"
   | "DELETE"
   | "ADD_BOTS"
   | "CLEAR_BOTS"
   | "TOGGLE_LATE_JOIN";
+
+const GAME_ACTIONS: GameAction[] = [
+  "START_GAME",
+  "START_QUESTION",
+  "LOCK",
+  "SHOW_RESULTS",
+  "SHOW_LEADERBOARD",
+  "NEXT_QUESTION",
+  "FINISH",
+];
+
 
 const BOT_FIRST_NAMES = [
   "נועה",
