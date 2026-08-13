@@ -485,8 +485,8 @@ export async function submitAnswerImpl(input: {
     : now;
   if (now > endsAt + 750) throw new GameError("TOO_LATE", "הזמן נגמר.");
 
-  const question = await loadQuestion(input.questionId);
-  const key = await loadKey(input.questionId);
+  const question = await loadQuestion(input.sessionId, input.questionId);
+  const key = await loadKey(input.sessionId, input.questionId);
   const isCorrect = key === input.answerId;
   const remainingMs = Math.max(0, endsAt - now);
   const score = computeScore(
@@ -545,7 +545,7 @@ export async function playerStateImpl(input: {
 export async function questionTickImpl(input: { sessionId: string; hostSecret: string }) {
   const session = await assertHost(input.sessionId, input.hostSecret);
   const questionId = session.current_question_index;
-  if (questionId < 1 || questionId > TOTAL_QUESTIONS) return { answered: 0, total: 0 };
+  if (questionId < 1 || questionId > session.total_questions) return { answered: 0, total: 0 };
 
   const { data: players } = await supabaseAdmin
     .from("game_players")
@@ -554,8 +554,8 @@ export async function questionTickImpl(input: { sessionId: string; hostSecret: s
   const all = players ?? [];
 
   if (session.phase === "QUESTION_ACTIVE" && session.question_started_at) {
-    const question = await loadQuestion(questionId);
-    const key = await loadKey(questionId);
+    const question = await loadQuestion(session.id, questionId);
+    const key = await loadKey(session.id, questionId);
     const durationMs = question.duration_seconds * 1000;
     const startedAt = new Date(session.question_started_at).getTime();
     const endsAt = new Date(session.question_ends_at ?? "").getTime() || startedAt + durationMs;
