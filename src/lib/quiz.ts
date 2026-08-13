@@ -85,46 +85,88 @@ export const DURATION_BY_CATEGORY: Record<QuestionCategory, number> = {
   OUTCOME: 30,
 };
 
-/** Leaderboard is shown strictly after every second question. */
+/** Leaderboard is shown strictly after every second question of the session. */
 export function showsLeaderboardAfter(questionIndex: number): boolean {
   return questionIndex > 0 && questionIndex % 2 === 0;
 }
 
 export type Transition = { phase: GamePhase; questionIndex: number };
 
-/** Authoritative state machine: the single legal "advance" step. */
-export function nextTransition(phase: GamePhase, questionIndex: number): Transition | null {
-  switch (phase) {
-    case "LOBBY":
-      return { phase: "QUESTION_INTRO", questionIndex: 1 };
-    case "QUESTION_INTRO":
-      return { phase: "QUESTION_ACTIVE", questionIndex };
-    case "QUESTION_ACTIVE":
-      return { phase: "QUESTION_LOCKED", questionIndex };
-    case "QUESTION_LOCKED":
-      return { phase: "SHOW_RESULTS", questionIndex };
+/** Explicit, non-ambiguous operator actions. Each maps to exactly one transition. */
+export type GameAction =
+  | "START_GAME"
+  | "START_QUESTION"
+  | "LOCK"
+  | "SHOW_RESULTS"
+  | "SHOW_LEADERBOARD"
+  | "NEXT_QUESTION"
+  | "FINISH";
+
+/**
+ * Resolves an explicit action into its target state.
+ * Returns null when the action is illegal for the current phase, so a repeated
+ * click can never move the game backwards to a question already played.
+ */
+export function resolveAction(
+  action: GameAction,
+  phase: GamePhase,
+  questionIndex: number,
+  totalQuestions: number,
+): Transition | null {
+  switch (action) {
+    case "START_GAME":
+      return phase === "LOBBY" ? { phase: "QUESTION_INTRO", questionIndex: 1 } : null;
+    case "START_QUESTION":
+      return phase === "QUESTION_INTRO" ? { phase: "QUESTION_ACTIVE", questionIndex } : null;
+    case "LOCK":
+      return phase === "QUESTION_ACTIVE" ? { phase: "QUESTION_LOCKED", questionIndex } : null;
     case "SHOW_RESULTS":
-      if (showsLeaderboardAfter(questionIndex)) return { phase: "LEADERBOARD", questionIndex };
+      return phase === "QUESTION_ACTIVE" || phase === "QUESTION_LOCKED"
+        ? { phase: "SHOW_RESULTS", questionIndex }
+        : null;
+    case "SHOW_LEADERBOARD":
+      return phase === "SHOW_RESULTS" ? { phase: "LEADERBOARD", questionIndex } : null;
+    case "NEXT_QUESTION":
+      if (phase !== "SHOW_RESULTS" && phase !== "LEADERBOARD") return null;
+      if (questionIndex >= totalQuestions) return null;
       return { phase: "QUESTION_INTRO", questionIndex: questionIndex + 1 };
-    case "LEADERBOARD":
-      if (questionIndex >= TOTAL_QUESTIONS) return { phase: "GAME_COMPLETE", questionIndex };
-      return { phase: "QUESTION_INTRO", questionIndex: questionIndex + 1 };
-    case "GAME_COMPLETE":
-      return null;
+    case "FINISH":
+      return phase === "LEADERBOARD" || phase === "SHOW_RESULTS"
+        ? { phase: "GAME_COMPLETE", questionIndex }
+        : null;
     default:
       return null;
   }
 }
 
-export function isLegalTransition(
-  from: GamePhase,
-  fromIndex: number,
-  to: GamePhase,
-  toIndex: number,
-): boolean {
-  const next = nextTransition(from, fromIndex);
-  return !!next && next.phase === to && next.questionIndex === toIndex;
+/** The action the operator should take next, given the live phase. */
+export function nextAction(
+  phase: GamePhase,
+  questionIndex: number,
+  totalQuestions: number,
+): { action: GameAction; label: string } | null {
+  const isLast = questionIndex >= totalQuestions;
+  switch (phase) {
+    case "LOBBY":
+      return { action: "START_GAME", label: "התחל משחק" };
+    case "QUESTION_INTRO":
+      return { action: "START_QUESTION", label: "התחל שאלה" };
+    case "QUESTION_ACTIVE":
+    case "QUESTION_LOCKED":
+      return { action: "SHOW_RESULTS", label: "הצג תשובה ותוצאות" };
+    case "SHOW_RESULTS":
+      if (isLast) return { action: "SHOW_LEADERBOARD", label: "הצג דירוג סופי" };
+      if (showsLeaderboardAfter(questionIndex))
+        return { action: "SHOW_LEADERBOARD", label: "הצג דירוג" };
+      return { action: "NEXT_QUESTION", label: "לשאלה הבאה" };
+    case "LEADERBOARD":
+      if (isLast) return { action: "FINISH", label: "סיום המשחק" };
+      return { action: "NEXT_QUESTION", label: "לשאלה הבאה" };
+    default:
+      return null;
+  }
 }
+
 
 /** Scoring: fast correct ~1000, last-second correct ~500, wrong/timeout 0. */
 export function computeScore(
