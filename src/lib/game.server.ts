@@ -264,66 +264,67 @@ export async function hostCommandImpl(input: {
 }) {
   const session = await assertHost(input.sessionId, input.hostSecret);
 
+  if (GAME_ACTIONS.includes(input.action as GameAction)) {
+    const action = input.action as GameAction;
+
+    // The snapshot is taken exactly once, when the game starts.
+    let totalQuestions = session.total_questions;
+    if (action === "START_GAME" && session.phase === "LOBBY") {
+      totalQuestions = await buildSnapshot(session.id);
+    }
+
+    const next = resolveAction(action, session.phase, session.current_question_index, totalQuestions);
+    if (!next) throw new GameError("INVALID_TRANSITION", "הפעולה אינה אפשרית במצב הנוכחי.");
+
+    const patch: {
+      phase: string;
+      current_question_index: number;
+      updated_at: string;
+      total_questions?: number;
+      question_started_at?: string | null;
+      question_ends_at?: string | null;
+      revealed_answer_id?: string | null;
+    } = {
+      phase: next.phase,
+      current_question_index: next.questionIndex,
+      updated_at: new Date().toISOString(),
+    };
+    if (action === "START_GAME") patch.total_questions = totalQuestions;
+    if (next.phase === "QUESTION_INTRO") {
+      patch.question_started_at = null;
+      patch.question_ends_at = null;
+      patch.revealed_answer_id = null;
+    }
+    if (next.phase === "QUESTION_ACTIVE") {
+      const question = await loadQuestion(session.id, next.questionIndex);
+      const now = Date.now();
+      patch.question_started_at = new Date(now).toISOString();
+      patch.question_ends_at = new Date(now + question.duration_seconds * 1000).toISOString();
+      patch.revealed_answer_id = null;
+    }
+    if (next.phase === "SHOW_RESULTS") {
+      patch.revealed_answer_id = await loadKey(session.id, next.questionIndex);
+    }
+
+    // Guard against double progression from two simultaneous clicks.
+    const { data, error } = await supabaseAdmin
+      .from("game_sessions")
+      .update(patch)
+      .eq("id", session.id)
+      .eq("phase", session.phase)
+      .eq("current_question_index", session.current_question_index)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new GameError("DB_ERROR", error.message);
+    if (!data) throw new GameError("CONFLICT", "המצב כבר עודכן.");
+    return { phase: next.phase, questionIndex: next.questionIndex };
+  }
+
   switch (input.action) {
-    case "ADVANCE": {
-      const next = nextTransition(session.phase, session.current_question_index);
-      if (!next) throw new GameError("INVALID_TRANSITION", "המשחק כבר הסתיים.");
-      const patch: {
-        phase: string;
-        current_question_index: number;
-        updated_at: string;
-        question_started_at?: string | null;
-        question_ends_at?: string | null;
-        revealed_answer_id?: string | null;
-      } = {
-        phase: next.phase,
-        current_question_index: next.questionIndex,
-        updated_at: new Date().toISOString(),
-      };
-      if (next.phase === "QUESTION_INTRO") {
-        patch.question_started_at = null;
-        patch.question_ends_at = null;
-        patch.revealed_answer_id = null;
-      }
-      if (next.phase === "QUESTION_ACTIVE") {
-        const question = await loadQuestion(next.questionIndex);
-        const now = Date.now();
-        patch.question_started_at = new Date(now).toISOString();
-        patch.question_ends_at = new Date(now + question.duration_seconds * 1000).toISOString();
-        patch.revealed_answer_id = null;
-      }
-      if (next.phase === "SHOW_RESULTS") {
-        patch.revealed_answer_id = await loadKey(next.questionIndex);
-      }
-      // Guard against double progression from two simultaneous clicks.
-      const { data, error } = await supabaseAdmin
-        .from("game_sessions")
-        .update(patch)
-        .eq("id", session.id)
-        .eq("phase", session.phase)
-        .eq("current_question_index", session.current_question_index)
-        .select("id")
-        .maybeSingle();
-      if (error) throw new GameError("DB_ERROR", error.message);
-      if (!data) throw new GameError("CONFLICT", "המצב כבר עודכן.");
-      return { phase: next.phase, questionIndex: next.questionIndex };
-    }
-    case "LOCK": {
-      if (session.phase !== "QUESTION_ACTIVE") return { ok: true };
-      const { error } = await supabaseAdmin
-        .from("game_sessions")
-        .update({
-          phase: "QUESTION_LOCKED",
-          question_ends_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", session.id)
-        .eq("phase", "QUESTION_ACTIVE");
-      if (error) throw new GameError("DB_ERROR", error.message);
-      return { ok: true };
-    }
     case "RESET": {
       await supabaseAdmin.from("game_answers").delete().eq("session_id", session.id);
+      await supabaseAdmin.from("game_session_questions").delete().eq("session_id", session.id);
+      await supabaseAdmin.from("game_session_question_keys").delete().eq("session_id", session.id);
       await supabaseAdmin
         .from("game_players")
         .update({ total_score: 0, correct_count: 0, cumulative_response_ms: 0 })
@@ -336,9 +337,11 @@ export async function hostCommandImpl(input: {
           question_started_at: null,
           question_ends_at: null,
           revealed_answer_id: null,
+          total_questions: 0,
           updated_at: new Date().toISOString(),
         })
         .eq("id", session.id);
+
       if (error) throw new GameError("DB_ERROR", error.message);
       return { ok: true };
     }
