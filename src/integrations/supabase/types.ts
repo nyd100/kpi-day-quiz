@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
       game_answers: {
         Row: {
           answer_id: string
@@ -161,6 +179,100 @@ export type Database = {
           },
         ]
       }
+      game_session_question_keys: {
+        Row: {
+          correct_answer_id: string
+          explanation: string | null
+          position: number
+          session_id: string
+        }
+        Insert: {
+          correct_answer_id: string
+          explanation?: string | null
+          position: number
+          session_id: string
+        }
+        Update: {
+          correct_answer_id?: string
+          explanation?: string | null
+          position?: number
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_session_question_keys_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "game_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_session_questions: {
+        Row: {
+          answer_a: string
+          answer_b: string
+          answer_c: string
+          answer_d: string
+          category: string
+          created_at: string
+          duration_seconds: number
+          executive_insight: string | null
+          image_url: string | null
+          pair_id: number | null
+          position: number
+          question_id: number | null
+          scoring_mode: string
+          session_id: string
+          subtitle: string | null
+          title: string
+        }
+        Insert: {
+          answer_a: string
+          answer_b: string
+          answer_c: string
+          answer_d: string
+          category: string
+          created_at?: string
+          duration_seconds: number
+          executive_insight?: string | null
+          image_url?: string | null
+          pair_id?: number | null
+          position: number
+          question_id?: number | null
+          scoring_mode?: string
+          session_id: string
+          subtitle?: string | null
+          title: string
+        }
+        Update: {
+          answer_a?: string
+          answer_b?: string
+          answer_c?: string
+          answer_d?: string
+          category?: string
+          created_at?: string
+          duration_seconds?: number
+          executive_insight?: string | null
+          image_url?: string | null
+          pair_id?: number | null
+          position?: number
+          question_id?: number | null
+          scoring_mode?: string
+          session_id?: string
+          subtitle?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_session_questions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "game_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_sessions: {
         Row: {
           allow_late_join: boolean
@@ -175,6 +287,7 @@ export type Database = {
           revealed_answer_id: string | null
           status: string
           title: string
+          total_questions: number
           updated_at: string
         }
         Insert: {
@@ -190,6 +303,7 @@ export type Database = {
           revealed_answer_id?: string | null
           status?: string
           title?: string
+          total_questions?: number
           updated_at?: string
         }
         Update: {
@@ -205,6 +319,7 @@ export type Database = {
           revealed_answer_id?: string | null
           status?: string
           title?: string
+          total_questions?: number
           updated_at?: string
         }
         Relationships: []
@@ -246,7 +361,9 @@ export type Database = {
           executive_insight: string | null
           id: number
           image_url: string | null
+          is_enabled: boolean
           is_placeholder: boolean
+          order_index: number
           pair_id: number | null
           scoring_mode: string
           subtitle: string | null
@@ -260,9 +377,11 @@ export type Database = {
           category: string
           duration_seconds: number
           executive_insight?: string | null
-          id: number
+          id?: number
           image_url?: string | null
+          is_enabled?: boolean
           is_placeholder?: boolean
+          order_index?: number
           pair_id?: number | null
           scoring_mode?: string
           subtitle?: string | null
@@ -278,7 +397,9 @@ export type Database = {
           executive_insight?: string | null
           id?: number
           image_url?: string | null
+          is_enabled?: boolean
           is_placeholder?: boolean
+          order_index?: number
           pair_id?: number | null
           scoring_mode?: string
           subtitle?: string | null

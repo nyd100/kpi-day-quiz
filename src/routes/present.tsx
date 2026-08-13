@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AnswerTile } from "@/components/quiz/answer-tile";
@@ -8,22 +8,25 @@ import { Countdown } from "@/components/quiz/countdown";
 import { LeaderboardList, Podium } from "@/components/quiz/leaderboard";
 import { ResultsBars } from "@/components/quiz/results-bars";
 import { hostCommand, questionTick, verifyHost } from "@/lib/game.functions";
+import { disableSound, enableSound, isSoundEnabled, playCue } from "@/lib/sound";
 import {
   hostStorage,
+  useAppSetting,
   useCountdown,
   useHydrated,
   useLivePlayers,
   useLiveSession,
   useQuestionAnswers,
-  useQuestions,
   useServerClock,
+  useSessionQuestions,
   type HostIdentity,
 } from "@/lib/use-game";
 import {
   CATEGORY_LABEL,
-  TOTAL_QUESTIONS,
   computeStatistics,
+  nextAction,
   type AnswerId,
+  type GameAction,
 } from "@/lib/quiz";
 
 export const Route = createFileRoute("/present")({
@@ -46,11 +49,13 @@ function PresentPage() {
   const [host, setHost] = useState<HostIdentity | null>(null);
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sound, setSound] = useState(false);
 
-  const questions = useQuestions();
   const now = useServerClock();
   const { session, connection } = useLiveSession(host?.sessionId ?? null);
+  const questions = useSessionQuestions(host?.sessionId ?? null);
   const players = useLivePlayers(host?.sessionId ?? null);
+  const logoUrl = useAppSetting("org_logo_url");
 
   useEffect(() => {
     const stored = hostStorage.get();
@@ -68,6 +73,7 @@ function PresentPage() {
   }, []);
 
   const questionIndex = session?.current_question_index ?? 0;
+  const totalQuestions = session?.total_questions ?? questions.length;
   const question = useMemo(
     () => questions.find((q) => q.id === questionIndex) ?? null,
     [questions, questionIndex],
@@ -85,6 +91,41 @@ function PresentPage() {
     question?.durationSeconds ?? 20,
   );
 
+  // ------------------------------------------------------------ sound cues
+  const lastPhase = useRef<string | null>(null);
+  useEffect(() => {
+    const phase = session?.phase ?? null;
+    if (!phase || phase === lastPhase.current) return;
+    lastPhase.current = phase;
+    if (phase === "QUESTION_INTRO") playCue("gameStart");
+    if (phase === "QUESTION_ACTIVE") playCue("questionStart");
+    if (phase === "QUESTION_LOCKED") playCue("timeUp");
+    if (phase === "SHOW_RESULTS") playCue("reveal");
+    if (phase === "LEADERBOARD") playCue("leaderboard");
+    if (phase === "GAME_COMPLETE") playCue("finale");
+  }, [session?.phase]);
+
+  const lastTick = useRef(0);
+  useEffect(() => {
+    if (session?.phase !== "QUESTION_ACTIVE") return;
+    if (seconds > 0 && seconds <= 5 && seconds !== lastTick.current) {
+      lastTick.current = seconds;
+      playCue("tick");
+    }
+    if (seconds > 5) lastTick.current = 0;
+  }, [seconds, session?.phase]);
+
+  const toggleSound = async () => {
+    if (sound) {
+      disableSound();
+      setSound(false);
+      return;
+    }
+    const ok = await enableSound();
+    setSound(ok && isSoundEnabled());
+    if (ok) playCue("questionStart");
+  };
+
   const tick = useCallback(async () => {
     if (!host) return;
     try {
@@ -100,28 +141,47 @@ function PresentPage() {
     return () => clearInterval(id);
   }, [host, session?.phase, tick]);
 
-  const run = async (
-    action: "ADVANCE" | "LOCK" | "RESET" | "DELETE" | "ADD_BOTS" | "CLEAR_BOTS" | "TOGGLE_LATE_JOIN",
-    count?: number,
-  ) => {
-    if (!host || busy) return;
-    setBusy(true);
-    try {
-      await hostCommand({
-        data: { sessionId: host.sessionId, hostSecret: host.hostSecret, action, count },
-      });
-      if (action === "DELETE") {
-        hostStorage.clear();
-        setHost(null);
+  const run = useCallback(
+    async (
+      action:
+        | GameAction
+        | "RESET"
+        | "DELETE"
+        | "ADD_BOTS"
+        | "CLEAR_BOTS"
+        | "TOGGLE_LATE_JOIN",
+      count?: number,
+    ) => {
+      if (!host) return;
+      setBusy(true);
+      try {
+        await hostCommand({
+          data: { sessionId: host.sessionId, hostSecret: host.hostSecret, action, count },
+        });
+        if (action === "DELETE") {
+          hostStorage.clear();
+          setHost(null);
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "הפעולה נכשלה.");
+      } finally {
+        setBusy(false);
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "הפעולה נכשלה.");
-    } finally {
-      setBusy(false);
-    }
-  };
+    },
+    [host],
+  );
+
+  // The timer is authoritative: when it hits zero the question locks itself.
+  const autoLocked = useRef(0);
+  useEffect(() => {
+    if (session?.phase !== "QUESTION_ACTIVE" || seconds > 0) return;
+    if (autoLocked.current === questionIndex) return;
+    autoLocked.current = questionIndex;
+    void run("LOCK");
+  }, [seconds, session?.phase, questionIndex, run]);
 
   if (!hydrated || !checked) return null;
+
 
   if (!host) {
     return (
@@ -180,7 +240,7 @@ function PresentPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-bold text-primary">
-                שאלה {question.id} מתוך {TOTAL_QUESTIONS} · {CATEGORY_LABEL[question.category]}
+                שאלה {question.id} מתוך {totalQuestions} · {CATEGORY_LABEL[question.category]}
               </p>
               <h2 className="mt-1 text-3xl font-black leading-snug">{question.title}</h2>
               {question.subtitle && (
@@ -232,13 +292,20 @@ function PresentPage() {
       )}
 
       <footer className="surface-card flex flex-wrap items-center gap-2 p-3">
-        <button
-          onClick={() => void run("ADVANCE")}
-          disabled={busy || session?.phase === "GAME_COMPLETE"}
-          className="h-12 flex-1 rounded-xl bg-gradient-accent px-6 font-bold text-primary-foreground disabled:opacity-50"
-        >
-          המשך ←
-        </button>
+        {(() => {
+          const step = session
+            ? nextAction(session.phase, session.current_question_index, totalQuestions)
+            : null;
+          return (
+            <button
+              onClick={() => step && void run(step.action)}
+              disabled={busy || !step}
+              className="h-12 flex-1 rounded-xl bg-gradient-accent px-6 font-bold text-primary-foreground disabled:opacity-50"
+            >
+              {step ? `${step.label} ←` : "המשחק הסתיים"}
+            </button>
+          );
+        })()}
         <button
           onClick={() => void run("LOCK")}
           disabled={busy || session?.phase !== "QUESTION_ACTIVE"}
@@ -246,6 +313,13 @@ function PresentPage() {
         >
           נעילת שאלה
         </button>
+        <button
+          onClick={() => void toggleSound()}
+          className="h-12 rounded-xl border border-input px-4 text-sm font-semibold"
+        >
+          {sound ? "🔊 צלילים פעילים" : "🔇 הפעלת צלילים"}
+        </button>
+
         <button
           onClick={() => void run("ADD_BOTS", 10)}
           disabled={busy}

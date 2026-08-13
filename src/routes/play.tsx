@@ -13,11 +13,11 @@ import {
   useHydrated,
   useLivePlayers,
   useLiveSession,
-  useQuestions,
+  useSessionQuestions,
   useServerClock,
   type PlayerIdentity,
 } from "@/lib/use-game";
-import { CATEGORY_LABEL, TOTAL_QUESTIONS, sortLeaderboard, type AnswerId } from "@/lib/quiz";
+import { CATEGORY_LABEL, sortLeaderboard, type AnswerId } from "@/lib/quiz";
 
 export const Route = createFileRoute("/play")({
   head: () => ({
@@ -41,7 +41,7 @@ function PlayPage() {
   const [answeredId, setAnsweredId] = useState<AnswerId | null>(null);
   const [pending, setPending] = useState<AnswerId | null>(null);
 
-  const questions = useQuestions();
+  const questions = useSessionQuestions(playerStorage.get()?.sessionId ?? null);
   const now = useServerClock();
   const { session, connection } = useLiveSession(identity?.sessionId ?? null);
   const players = useLivePlayers(identity?.sessionId ?? null);
@@ -164,7 +164,7 @@ function PlayPage() {
       {session.phase === "QUESTION_INTRO" && (
         <Panel>
           <p className="text-sm font-semibold text-primary">
-            שאלה {questionIndex} מתוך {TOTAL_QUESTIONS}
+            שאלה {questionIndex} מתוך {session?.total_questions ?? questions.length}
           </p>
           <h1 className="mt-2 text-3xl font-black">מתכוננים...</h1>
           <p className="mt-2 text-muted-foreground">השאלה תופיע כאן ברגע שהמנחה יתחיל</p>
@@ -181,7 +181,7 @@ function PlayPage() {
             />
             <div className="min-w-0">
               <p className="text-xs font-bold tracking-wide text-primary">
-                שאלה {question.id} מתוך {TOTAL_QUESTIONS} · {CATEGORY_LABEL[question.category]}
+                שאלה {question.id} מתוך {session?.total_questions ?? questions.length} · {CATEGORY_LABEL[question.category]}
               </p>
               <h1 className="mt-1 text-lg font-bold leading-snug">{question.title}</h1>
             </div>
