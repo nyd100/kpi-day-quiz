@@ -108,24 +108,86 @@ async function assertPlayer(sessionId: string, playerId: string, playerSecret: s
   return player;
 }
 
-async function loadQuestion(questionId: number) {
+/** Snapshot question for a running session, addressed by its position. */
+async function loadQuestion(sessionId: string, position: number) {
   const { data, error } = await supabaseAdmin
-    .from("questions_public")
-    .select("id, category, duration_seconds, scoring_mode")
-    .eq("id", questionId)
+    .from("game_session_questions")
+    .select("position, category, duration_seconds, scoring_mode")
+    .eq("session_id", sessionId)
+    .eq("position", position)
     .maybeSingle();
   if (error) throw new GameError("DB_ERROR", error.message);
   if (!data) throw new GameError("NOT_FOUND", "השאלה לא נמצאה.");
   return data;
 }
 
-async function loadKey(questionId: number): Promise<AnswerId> {
+async function loadKey(sessionId: string, position: number): Promise<AnswerId> {
   const { data } = await supabaseAdmin
-    .from("question_keys_private")
+    .from("game_session_question_keys")
     .select("correct_answer_id")
-    .eq("question_id", questionId)
+    .eq("session_id", sessionId)
+    .eq("position", position)
     .maybeSingle();
   return (data?.correct_answer_id ?? "A") as AnswerId;
+}
+
+/**
+ * Freezes the currently enabled master questions into the session.
+ * Once taken, later master edits/deletes/reorders cannot affect this game.
+ */
+async function buildSnapshot(sessionId: string): Promise<number> {
+  const { data: master, error } = await supabaseAdmin
+    .from("questions_public")
+    .select("*")
+    .eq("is_enabled", true)
+    .order("order_index")
+    .order("id");
+  if (error) throw new GameError("DB_ERROR", error.message);
+  const rows = master ?? [];
+  if (rows.length === 0) throw new GameError("NO_QUESTIONS", "אין שאלות פעילות להתחלת משחק.");
+
+  await supabaseAdmin.from("game_session_questions").delete().eq("session_id", sessionId);
+  await supabaseAdmin.from("game_session_question_keys").delete().eq("session_id", sessionId);
+
+  const { data: keys } = await supabaseAdmin
+    .from("question_keys_private")
+    .select("question_id, correct_answer_id, explanation");
+  const keyMap = new Map((keys ?? []).map((k) => [k.question_id, k]));
+
+  const snapshot = rows.map((q, i) => ({
+    session_id: sessionId,
+    position: i + 1,
+    question_id: q.id,
+    category: q.category,
+    pair_id: q.pair_id,
+    title: q.title,
+    subtitle: q.subtitle,
+    answer_a: q.answer_a,
+    answer_b: q.answer_b,
+    answer_c: q.answer_c,
+    answer_d: q.answer_d,
+    duration_seconds: q.duration_seconds,
+    scoring_mode: q.scoring_mode,
+    executive_insight: q.executive_insight,
+    image_url: (q as { image_url: string | null }).image_url ?? null,
+  }));
+  const keyRows = rows.map((q, i) => ({
+    session_id: sessionId,
+    position: i + 1,
+    correct_answer_id: keyMap.get(q.id)?.correct_answer_id ?? "A",
+    explanation: keyMap.get(q.id)?.explanation ?? null,
+  }));
+
+  const { error: insertError } = await supabaseAdmin
+    .from("game_session_questions")
+    .insert(snapshot);
+  if (insertError) throw new GameError("DB_ERROR", insertError.message);
+  const { error: keyError } = await supabaseAdmin
+    .from("game_session_question_keys")
+    .insert(keyRows);
+  if (keyError) throw new GameError("DB_ERROR", keyError.message);
+
+  return rows.length;
 }
 
 // ---------------------------------------------------------------- host flows
