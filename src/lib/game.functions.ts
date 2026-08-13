@@ -31,7 +31,12 @@ export const hostCommand = createServerFn({ method: "POST" })
         sessionId: uuid,
         hostSecret: secret,
         action: z.enum([
-          "ADVANCE",
+          "START_GAME",
+          "START_QUESTION",
+          "SHOW_RESULTS",
+          "SHOW_LEADERBOARD",
+          "NEXT_QUESTION",
+          "FINISH",
           "LOCK",
           "RESET",
           "DELETE",
