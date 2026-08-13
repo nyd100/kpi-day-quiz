@@ -42,6 +42,7 @@ export type SessionRow = {
   revealed_answer_id: string | null;
   allow_late_join: boolean;
   expires_at: string;
+  total_questions: number;
 };
 
 export type PlayerRow = {
