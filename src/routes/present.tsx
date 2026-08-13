@@ -240,7 +240,7 @@ function PresentPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-bold text-primary">
-                שאלה {question.id} מתוך {TOTAL_QUESTIONS} · {CATEGORY_LABEL[question.category]}
+                שאלה {question.id} מתוך {totalQuestions} · {CATEGORY_LABEL[question.category]}
               </p>
               <h2 className="mt-1 text-3xl font-black leading-snug">{question.title}</h2>
               {question.subtitle && (
