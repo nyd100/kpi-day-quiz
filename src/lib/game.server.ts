@@ -2,12 +2,12 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   computeScore,
-  nextTransition,
+  resolveAction,
   normalizeName,
   validateName,
   validatePin,
-  TOTAL_QUESTIONS,
   type AnswerId,
+  type GameAction,
   type GamePhase,
 } from "@/lib/quiz";
 
@@ -57,13 +57,14 @@ type SessionRecord = {
   question_ends_at: string | null;
   allow_late_join: boolean;
   expires_at: string;
+  total_questions: number;
 };
 
 export async function loadSession(sessionId: string): Promise<SessionRecord> {
   const { data, error } = await supabaseAdmin
     .from("game_sessions")
     .select(
-      "id, pin, status, phase, current_question_index, question_started_at, question_ends_at, allow_late_join, expires_at",
+      "id, pin, status, phase, current_question_index, question_started_at, question_ends_at, allow_late_join, expires_at, total_questions",
     )
     .eq("id", sessionId)
     .maybeSingle();
