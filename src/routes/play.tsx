@@ -13,11 +13,11 @@ import {
   useHydrated,
   useLivePlayers,
   useLiveSession,
-  useQuestions,
+  useSessionQuestions,
   useServerClock,
   type PlayerIdentity,
 } from "@/lib/use-game";
-import { CATEGORY_LABEL, TOTAL_QUESTIONS, sortLeaderboard, type AnswerId } from "@/lib/quiz";
+import { CATEGORY_LABEL, sortLeaderboard, type AnswerId } from "@/lib/quiz";
 
 export const Route = createFileRoute("/play")({
   head: () => ({
@@ -41,7 +41,7 @@ function PlayPage() {
   const [answeredId, setAnsweredId] = useState<AnswerId | null>(null);
   const [pending, setPending] = useState<AnswerId | null>(null);
 
-  const questions = useQuestions();
+  const questions = useSessionQuestions(playerStorage.get()?.sessionId ?? null);
   const now = useServerClock();
   const { session, connection } = useLiveSession(identity?.sessionId ?? null);
   const players = useLivePlayers(identity?.sessionId ?? null);
