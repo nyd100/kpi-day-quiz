@@ -37,7 +37,8 @@ export const adminSaveQuestion = createServerFn({ method: "POST" })
       .object({
         passcode,
         question: z.object({
-          id: z.number().int().min(1).max(16),
+          id: z.number().int().min(1),
+          pairId: z.number().int().min(1).max(999).nullable().optional(),
           category: z.enum(["OUTPUT", "OUTCOME"]),
           title: z.string().min(1).max(300),
           subtitle: z.string().max(400).nullable(),
