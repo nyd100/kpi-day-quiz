@@ -96,8 +96,8 @@ export type SaveQuestionInput = {
   correctAnswerId: AnswerId;
   explanation: string | null;
   isPlaceholder: boolean;
-  pairId?: number | null;
-  isEnabled?: boolean;
+  pairId?: number | null | undefined;
+  isEnabled?: boolean | undefined;
 };
 
 export async function saveQuestionImpl(input: SaveQuestionInput) {
