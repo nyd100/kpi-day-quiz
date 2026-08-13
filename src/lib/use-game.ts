@@ -202,23 +202,18 @@ export function useQuestionAnswers(sessionId: string | null, questionId: number,
   return answers;
 }
 
-/** Countdown derived from the absolute backend deadline, not from ticks. */
+/**
+ * Countdown derived from the absolute backend deadline.
+ * A ticking state value drives the recompute, so the number visibly moves.
+ */
 export function useCountdown(endsAt: string | null, now: () => number, durationSeconds: number) {
-  const [, force] = useState(0);
-  const raf = useRef<number | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-    const loop = () => {
-      if (cancelled) return;
-      force((v) => (v + 1) % 1000);
-      raf.current = window.setTimeout(loop, 200) as unknown as number;
-    };
-    loop();
-    return () => {
-      cancelled = true;
-      if (raf.current) clearTimeout(raf.current);
-    };
+    if (!endsAt) return;
+    setTick((v) => v + 1);
+    const id = window.setInterval(() => setTick((v) => (v + 1) % 100000), 100);
+    return () => window.clearInterval(id);
   }, [endsAt]);
 
   return useMemo(() => {
@@ -229,9 +224,78 @@ export function useCountdown(endsAt: string | null, now: () => number, durationS
       seconds: Math.ceil(remainingMs / 1000),
       ratio: Math.max(0, Math.min(1, remainingMs / (durationSeconds * 1000))),
     };
+    // `tick` intentionally drives the recompute each frame.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endsAt, now, durationSeconds, force]);
+  }, [endsAt, now, durationSeconds, tick]);
 }
+
+/** Questions frozen into a running session, addressed by position (1-based). */
+export function useSessionQuestions(sessionId: string | null) {
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  useEffect(() => {
+    if (!sessionId) {
+      setQuestions([]);
+      return;
+    }
+    let active = true;
+    const load = async () => {
+      const { data } = await supabase
+        .from("game_session_questions")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("position");
+      if (!active || !data) return;
+      setQuestions(
+        data.map((q) => ({
+          id: q.position,
+          category: q.category as QuizQuestion["category"],
+          pairId: q.pair_id,
+          title: q.title,
+          subtitle: q.subtitle,
+          answers: [
+            { id: "A" as const, text: q.answer_a },
+            { id: "B" as const, text: q.answer_b },
+            { id: "C" as const, text: q.answer_c },
+            { id: "D" as const, text: q.answer_d },
+          ],
+          durationSeconds: q.duration_seconds,
+          scoringMode: q.scoring_mode as QuizQuestion["scoringMode"],
+          executiveInsight: q.executive_insight,
+          isPlaceholder: false,
+          imageUrl: q.image_url,
+        })),
+      );
+    };
+    void load();
+    const id = window.setInterval(() => void load(), 10_000);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, [sessionId]);
+  return questions;
+}
+
+/** Public app setting (e.g. the division logo). */
+export function useAppSetting(key: string) {
+  const [value, setValue] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", key)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) setValue(data?.value ?? null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [key]);
+  return value;
+}
+
 
 // ------------------------------------------------------------ local identity
 
