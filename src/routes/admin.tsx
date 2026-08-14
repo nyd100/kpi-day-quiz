@@ -390,25 +390,112 @@ function AdminPage() {
         </div>
       </section>
 
-      <div className="space-y-3">
-        {questions.map((q) => (
-          <article key={q.id} className="surface-card overflow-hidden">
+      <section className="surface-card mb-6 space-y-3 p-5">
+        <h2 className="text-lg font-bold">לוגו היחידה</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="לוגו היחידה"
+              className="h-16 w-16 rounded-xl border border-border object-contain"
+            />
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void uploadLogo(file);
+              e.target.value = "";
+            }}
+            className="text-sm"
+          />
+          {logoUrl && (
             <button
-              onClick={() => setOpenId(openId === q.id ? null : q.id)}
-              className="flex w-full items-center justify-between gap-3 p-4 text-right"
+              onClick={() => void removeLogo()}
+              disabled={busy}
+              className="rounded-xl border border-input px-3 py-2 text-sm font-semibold"
             >
-              <span className="flex-1">
-                <span className="text-xs font-bold text-primary">
-                  שאלה {q.id} · {CATEGORY_LABEL[q.category]}
-                </span>
-                <span className="mt-1 block font-bold">{q.title}</span>
-              </span>
-              {q.isPlaceholder && (
-                <span className="rounded-lg bg-amber-500/15 px-2 py-1 text-xs font-bold text-amber-400">
-                  טיוטה
-                </span>
-              )}
+              הסרת לוגו
             </button>
+          )}
+        </div>
+      </section>
+
+      <div className="mb-4 flex flex-wrap gap-3">
+        <button
+          onClick={() => void addQuestion()}
+          disabled={busy}
+          className="h-11 rounded-xl bg-primary px-5 font-bold text-primary-foreground disabled:opacity-60"
+        >
+          + הוספת שאלה
+        </button>
+        <button
+          onClick={() => void restoreDefaults()}
+          disabled={busy}
+          className="h-11 rounded-xl border border-input px-5 font-semibold disabled:opacity-60"
+        >
+          שחזור שאלות ברירת המחדל
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {questions.map((q, index) => (
+          <article key={q.id} className="surface-card overflow-hidden">
+            <div className="flex items-center gap-2 p-2">
+              <div className="flex flex-col">
+                <button
+                  onClick={() => void move(q.id, -1)}
+                  disabled={busy || index === 0}
+                  aria-label="העלאה למעלה"
+                  className="rounded-md px-2 text-xs disabled:opacity-30"
+                >
+                  ▲
+                </button>
+                <button
+                  onClick={() => void move(q.id, 1)}
+                  disabled={busy || index === questions.length - 1}
+                  aria-label="הורדה למטה"
+                  className="rounded-md px-2 text-xs disabled:opacity-30"
+                >
+                  ▼
+                </button>
+              </div>
+              <button
+                onClick={() => setOpenId(openId === q.id ? null : q.id)}
+                className="flex flex-1 items-center justify-between gap-3 p-2 text-right"
+              >
+                <span className="flex-1">
+                  <span className="text-xs font-bold text-primary">
+                    {index + 1}. שאלה {q.id} · {CATEGORY_LABEL[q.category]}
+                  </span>
+                  <span className={`mt-1 block font-bold ${q.isEnabled ? "" : "opacity-40"}`}>
+                    {q.title}
+                  </span>
+                </span>
+                {q.isPlaceholder && (
+                  <span className="rounded-lg bg-amber-500/15 px-2 py-1 text-xs font-bold text-amber-400">
+                    טיוטה
+                  </span>
+                )}
+              </button>
+              <label className="flex shrink-0 items-center gap-1 text-xs font-semibold">
+                <input
+                  type="checkbox"
+                  checked={q.isEnabled}
+                  onChange={(e) => void toggleEnabled(q.id, e.target.checked)}
+                />
+                פעילה
+              </label>
+              <button
+                onClick={() => void removeQuestion(q.id)}
+                disabled={busy}
+                className="shrink-0 rounded-lg border border-destructive/40 px-2 py-1 text-xs font-semibold text-destructive disabled:opacity-40"
+              >
+                מחיקה
+              </button>
+            </div>
+
 
             {openId === q.id && (
               <div className="space-y-4 border-t border-border p-4">
