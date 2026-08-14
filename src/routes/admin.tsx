@@ -180,6 +180,108 @@ function AdminPage() {
     }
   };
 
+  const addQuestion = async () => {
+    setBusy(true);
+    try {
+      const res = await adminCreateQuestion({ data: { passcode } });
+      await load(passcode);
+      setOpenId(res.id);
+      toast.success("נוספה שאלה חדשה.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "ההוספה נכשלה.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeQuestion = async (id: number) => {
+    if (!confirm(`למחוק את שאלה ${id}?`)) return;
+    setBusy(true);
+    try {
+      await adminDeleteQuestion({ data: { passcode, questionId: id } });
+      setQuestions((prev) => prev.filter((q) => q.id !== id));
+      if (openId === id) setOpenId(null);
+      toast.success("השאלה נמחקה.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "המחיקה נכשלה.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleEnabled = async (id: number, isEnabled: boolean) => {
+    patch(id, { isEnabled });
+    try {
+      await adminSetQuestionEnabled({ data: { passcode, questionId: id, isEnabled } });
+    } catch (error) {
+      patch(id, { isEnabled: !isEnabled });
+      toast.error(error instanceof Error ? error.message : "העדכון נכשל.");
+    }
+  };
+
+  const move = async (id: number, direction: -1 | 1) => {
+    const index = questions.findIndex((q) => q.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= questions.length) return;
+    const next = [...questions];
+    const [item] = next.splice(index, 1);
+    next.splice(target, 0, item!);
+    setQuestions(next);
+    try {
+      await adminReorderQuestions({ data: { passcode, orderedIds: next.map((q) => q.id) } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "שינוי הסדר נכשל.");
+      await load(passcode);
+    }
+  };
+
+  const restoreDefaults = async () => {
+    if (!confirm("לשחזר את 16 שאלות ברירת המחדל? כל השינויים יימחקו.")) return;
+    setBusy(true);
+    try {
+      await adminRestoreDefaults({ data: { passcode } });
+      await load(passcode);
+      toast.success("השאלות שוחזרו.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "השחזור נכשל.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uploadLogo = async (file: File) => {
+    setBusy(true);
+    try {
+      const res = await adminUploadLogo({
+        data: {
+          passcode,
+          fileName: file.name,
+          contentType: file.type || "image/png",
+          base64: await fileToBase64(file),
+        },
+      });
+      setLogoUrl(res.logoUrl);
+      toast.success("הלוגו הועלה.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "העלאת הלוגו נכשלה.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeLogo = async () => {
+    setBusy(true);
+    try {
+      await adminRemoveLogo({ data: { passcode } });
+      setLogoUrl(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "הסרת הלוגו נכשלה.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
   const startQuiz = async () => {
     setBusy(true);
     try {
