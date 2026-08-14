@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import ministryLogo from "@/assets/ministry-logo.png.asset.json";
 import { AnswerTile } from "@/components/quiz/answer-tile";
 import { ConnectionBadge } from "@/components/quiz/connection-badge";
 import { Countdown } from "@/components/quiz/countdown";
@@ -209,9 +210,18 @@ function PresentPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-4 py-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold tracking-widest text-primary">סיכום חציון א' 2026</p>
-          <h1 className="text-2xl font-black">ממספרים לאימפקט</h1>
+        <div className="flex items-center gap-4">
+          <div className="rounded-xl bg-white p-2">
+            <img
+              src={ministryLogo.url}
+              alt="לוגו משרד העלייה והקליטה – חטיבת תקציבים, אסטרטגיה ותכנון מדיניות"
+              className="h-12 w-auto"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold tracking-widest text-primary">סיכום חציון א' 2026</p>
+            <h1 className="text-2xl font-black">ממספרים לאימפקט</h1>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <ConnectionBadge state={connection} />
