@@ -4,10 +4,18 @@ import { toast } from "sonner";
 
 import {
   adminCreateGame,
+  adminCreateQuestion,
+  adminDeleteQuestion,
+  adminGetSettings,
   adminListQuestions,
   adminLogin,
+  adminRemoveLogo,
   adminRemoveQuestionImage,
+  adminReorderQuestions,
+  adminRestoreDefaults,
   adminSaveQuestion,
+  adminSetQuestionEnabled,
+  adminUploadLogo,
   adminUploadQuestionImage,
 } from "@/lib/admin.functions";
 import { hostStorage, useHydrated, type HostIdentity } from "@/lib/use-game";
@@ -42,6 +50,7 @@ function AdminPage() {
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
   const [game, setGame] = useState<HostIdentity | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? sessionStorage.getItem(PASS_KEY) : null;
@@ -51,8 +60,19 @@ function AdminPage() {
   }, []);
 
   const load = async (code: string) => {
-    const list = await adminListQuestions({ data: { passcode: code } });
+    const [list, settings] = await Promise.all([
+      adminListQuestions({ data: { passcode: code } }),
+      adminGetSettings({ data: { passcode: code } }),
+    ]);
     setQuestions(list);
+    setLogoUrl(settings.logoUrl);
+  };
+
+  const fileToBase64 = async (file: File) => {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    return btoa(binary);
   };
 
   const unlock = async (code: string, silent = false) => {
@@ -98,6 +118,7 @@ function AdminPage() {
           question: {
             id: q.id,
             category: q.category,
+            pairId: q.pairId,
             title: q.title,
             subtitle: q.subtitle,
             answerA: q.answers.find((a) => a.id === "A")?.text ?? "",
