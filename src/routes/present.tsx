@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import ministryLogo from "@/assets/ministry-logo.png.asset.json";
 import { AnswerTile } from "@/components/quiz/answer-tile";
 import { ConnectionBadge } from "@/components/quiz/connection-badge";
 import { Countdown } from "@/components/quiz/countdown";
