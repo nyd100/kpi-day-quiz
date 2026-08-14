@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import ministryLogo from "@/assets/ministry-logo.png.asset.json";
 import { joinGame } from "@/lib/game.functions";
 import { playerStorage, useHydrated } from "@/lib/use-game";
 import { validateName, validatePin } from "@/lib/quiz";
