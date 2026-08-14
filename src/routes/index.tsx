@@ -64,6 +64,13 @@ function JoinPage() {
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <header className="mb-8 text-center">
+          <div className="mx-auto mb-6 w-full max-w-xs rounded-2xl bg-white p-3">
+            <img
+              src={ministryLogo.url}
+              alt="לוגו משרד העלייה והקליטה – חטיבת תקציבים, אסטרטגיה ותכנון מדיניות"
+              className="h-auto w-full"
+            />
+          </div>
           <p className="mb-2 text-sm font-semibold tracking-widest text-primary">
             סיכום חציון א' 2026
           </p>
