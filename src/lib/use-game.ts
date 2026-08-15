@@ -86,7 +86,14 @@ export function useLiveSession(sessionId: string | null) {
 
   const refetch = useCallback(async () => {
     if (!sessionId) return;
-    const { data } = await supabase.from("game_sessions").select("*").eq("id", sessionId).maybeSingle();
+    // The PIN column is intentionally not readable by clients (see RLS/column grants).
+    const { data } = await supabase
+      .from("game_sessions")
+      .select(
+        "id, title, status, phase, current_question_index, question_started_at, question_ends_at, revealed_answer_id, allow_late_join, created_at, expires_at, updated_at, total_questions",
+      )
+      .eq("id", sessionId)
+      .maybeSingle();
     if (data) setSession(data as unknown as SessionRow);
   }, [sessionId]);
 
