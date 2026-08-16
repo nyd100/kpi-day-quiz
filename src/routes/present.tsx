@@ -25,7 +25,7 @@ import {
 import {
   CATEGORY_LABEL,
   computeStatistics,
-  nextAction,
+  
   type AnswerId,
   type GameAction,
 } from "@/lib/quiz";
