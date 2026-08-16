@@ -49,7 +49,7 @@ function PresentPage() {
   const hydrated = useHydrated();
   const [host, setHost] = useState<HostIdentity | null>(null);
   const [checked, setChecked] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [, setBusy] = useState(false);
   const [sound, setSound] = useState(false);
 
   const now = useServerClock();
