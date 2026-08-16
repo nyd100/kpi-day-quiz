@@ -143,6 +143,8 @@ export async function createQuestionImpl() {
     .limit(1)
     .maybeSingle();
   const nextOrder = ((last as { order_index: number } | null)?.order_index ?? 0) + 1;
+  const { defaultDurationSeconds } = await getSettingsImpl();
+
 
   const { data, error } = await supabaseAdmin
     .from("questions_public")
