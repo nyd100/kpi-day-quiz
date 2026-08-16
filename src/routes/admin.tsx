@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+
+import { hostCommand } from "@/lib/game.functions";
 
 import {
   adminCreateGame,
@@ -14,12 +16,37 @@ import {
   adminReorderQuestions,
   adminRestoreDefaults,
   adminSaveQuestion,
+  adminSetDefaultDuration,
   adminSetQuestionEnabled,
   adminUploadLogo,
   adminUploadQuestionImage,
 } from "@/lib/admin.functions";
-import { hostStorage, useHydrated, type HostIdentity } from "@/lib/use-game";
-import { ANSWER_IDS, CATEGORY_LABEL, TOTAL_QUESTIONS, type AnswerId } from "@/lib/quiz";
+import {
+  hostStorage,
+  useCountdown,
+  useHydrated,
+  useLivePlayers,
+  useLiveSession,
+  useServerClock,
+  useSessionQuestions,
+  type HostIdentity,
+} from "@/lib/use-game";
+import {
+  ANSWER_IDS,
+  CATEGORY_LABEL,
+  TOTAL_QUESTIONS,
+  nextAction,
+  type AnswerId,
+  type GameAction,
+} from "@/lib/quiz";
+
+type HostControlAction =
+  | GameAction
+  | "RESET"
+  | "DELETE"
+  | "ADD_BOTS"
+  | "CLEAR_BOTS"
+  | "TOGGLE_LATE_JOIN";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -51,6 +78,21 @@ function AdminPage() {
   const [openId, setOpenId] = useState<number | null>(null);
   const [game, setGame] = useState<HostIdentity | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [defaultDuration, setDefaultDuration] = useState(30);
+
+  // ------------------------------------------------ live control of the game
+  const now = useServerClock();
+  const { session } = useLiveSession(game?.sessionId ?? null);
+  const players = useLivePlayers(game?.sessionId ?? null);
+  const sessionQuestions = useSessionQuestions(game?.sessionId ?? null);
+  const questionIndex = session?.current_question_index ?? 0;
+  const totalLive = session?.total_questions ?? sessionQuestions.length;
+  const liveQuestion = sessionQuestions.find((q) => q.id === questionIndex) ?? null;
+  const { seconds } = useCountdown(
+    session?.phase === "QUESTION_ACTIVE" ? session.question_ends_at : null,
+    now,
+    liveQuestion?.durationSeconds ?? 20,
+  );
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? sessionStorage.getItem(PASS_KEY) : null;
@@ -59,6 +101,28 @@ function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const run = useCallback(
+    async (action: HostControlAction, count?: number) => {
+      const host = game;
+      if (!host) return;
+      setBusy(true);
+      try {
+        await hostCommand({
+          data: { sessionId: host.sessionId, hostSecret: host.hostSecret, action, count },
+        });
+        if (action === "DELETE") {
+          hostStorage.clear();
+          setGame(null);
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "הפעולה נכשלה.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [game],
+  );
+
   const load = async (code: string) => {
     const [list, settings] = await Promise.all([
       adminListQuestions({ data: { passcode: code } }),
@@ -66,6 +130,19 @@ function AdminPage() {
     ]);
     setQuestions(list);
     setLogoUrl(settings.logoUrl);
+    setDefaultDuration(settings.defaultDurationSeconds);
+  };
+
+  const changeDefaultDuration = async (seconds: number) => {
+    const next = Math.min(120, Math.max(5, seconds));
+    const previous = defaultDuration;
+    setDefaultDuration(next);
+    try {
+      await adminSetDefaultDuration({ data: { passcode, seconds: next } });
+    } catch (error) {
+      setDefaultDuration(previous);
+      toast.error(error instanceof Error ? error.message : "שמירת ההגדרה נכשלה.");
+    }
   };
 
   const fileToBase64 = async (file: File) => {
@@ -387,6 +464,123 @@ function AdminPage() {
               </Link>
             </>
           )}
+        </div>
+      </section>
+
+      {game && (
+        <section className="surface-card mb-6 space-y-3 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-bold">שליטה במשחק החי</h2>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="rounded-lg bg-muted px-3 py-1 font-semibold">
+                {players.length} משתתפים
+              </span>
+              <span className="rounded-lg bg-muted px-3 py-1 font-semibold">
+                שאלה {questionIndex || 0}/{totalLive}
+              </span>
+              {session?.phase === "QUESTION_ACTIVE" && (
+                <span className="tabular rounded-lg bg-primary px-3 py-1 font-black text-primary-foreground">
+                  {seconds}s
+                </span>
+              )}
+              <span className="rounded-lg bg-muted px-3 py-1 font-semibold">
+                {session?.phase ?? "—"}
+              </span>
+            </div>
+          </div>
+
+          {liveQuestion && (
+            <p className="text-sm text-muted-foreground">{liveQuestion.title}</p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {(() => {
+              const step = session
+                ? nextAction(session.phase, session.current_question_index, totalLive)
+                : null;
+              return (
+                <button
+                  onClick={() => step && void run(step.action)}
+                  disabled={busy || !step}
+                  className="h-12 flex-1 rounded-xl bg-gradient-accent px-6 font-bold text-primary-foreground disabled:opacity-50"
+                >
+                  {step ? `${step.label} ←` : "המשחק הסתיים"}
+                </button>
+              );
+            })()}
+            <button
+              onClick={() => void run("LOCK")}
+              disabled={busy || session?.phase !== "QUESTION_ACTIVE"}
+              className="h-12 rounded-xl border border-input px-4 font-semibold disabled:opacity-50"
+            >
+              נעילת שאלה
+            </button>
+            <button
+              onClick={() => void run("ADD_BOTS", 10)}
+              disabled={busy}
+              className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+            >
+              + 10 בוטים
+            </button>
+            <button
+              onClick={() => void run("CLEAR_BOTS")}
+              disabled={busy}
+              className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+            >
+              ניקוי בוטים
+            </button>
+            <button
+              onClick={() => void run("TOGGLE_LATE_JOIN")}
+              disabled={busy}
+              className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+            >
+              {session?.allow_late_join ? "חסימת הצטרפות מאוחרת" : "אפשור הצטרפות מאוחרת"}
+            </button>
+            <button
+              onClick={() => void run("RESET")}
+              disabled={busy}
+              className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+            >
+              איפוס
+            </button>
+            <button
+              onClick={() => {
+                if (confirm("לסגור את המשחק הנוכחי?")) void run("DELETE");
+              }}
+              disabled={busy}
+              className="h-12 rounded-xl border border-destructive/40 px-4 text-sm font-semibold text-destructive disabled:opacity-50"
+            >
+              סגירת משחק
+            </button>
+          </div>
+        </section>
+      )}
+
+      <section className="surface-card mb-6 space-y-3 p-5">
+        <h2 className="text-lg font-bold">זמן ברירת מחדל למענה</h2>
+        <p className="text-sm text-muted-foreground">
+          זמן המענה שיוגדר לשאלות חדשות. אפשר לשנות בקפיצות של 5 שניות.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => void changeDefaultDuration(defaultDuration - 5)}
+            disabled={busy || defaultDuration <= 5}
+            aria-label="הפחתת 5 שניות"
+            className="h-11 w-11 rounded-xl border border-input text-lg font-bold disabled:opacity-40"
+          >
+            −
+          </button>
+          <span className="tabular w-24 rounded-xl bg-muted px-4 py-2 text-center text-lg font-black">
+            {defaultDuration}s
+          </span>
+          <button
+            onClick={() => void changeDefaultDuration(defaultDuration + 5)}
+            disabled={busy || defaultDuration >= 120}
+            aria-label="הוספת 5 שניות"
+            className="h-11 w-11 rounded-xl border border-input text-lg font-bold disabled:opacity-40"
+          >
+            +
+          </button>
         </div>
       </section>
 

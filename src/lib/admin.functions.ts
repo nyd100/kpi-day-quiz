@@ -191,6 +191,21 @@ export const adminGetSettings = createServerFn({ method: "POST" })
     }
   });
 
+export const adminSetDefaultDuration = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ passcode, seconds: z.number().int().min(5).max(120) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { assertAdmin, setDefaultDurationImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      assertAdmin(data.passcode);
+      return await setDefaultDurationImpl(data.seconds);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "שמירת ההגדרה נכשלה.");
+    }
+  });
+
 export const adminUploadLogo = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z

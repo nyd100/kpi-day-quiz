@@ -143,6 +143,8 @@ export async function createQuestionImpl() {
     .limit(1)
     .maybeSingle();
   const nextOrder = ((last as { order_index: number } | null)?.order_index ?? 0) + 1;
+  const { defaultDurationSeconds } = await getSettingsImpl();
+
 
   const { data, error } = await supabaseAdmin
     .from("questions_public")
@@ -153,7 +155,7 @@ export async function createQuestionImpl() {
       answer_b: "תשובה ב",
       answer_c: "תשובה ג",
       answer_d: "תשובה ד",
-      duration_seconds: 20,
+      duration_seconds: defaultDurationSeconds,
       scoring_mode: "QUIZ",
       is_placeholder: true,
       order_index: nextOrder,
@@ -292,12 +294,34 @@ export async function removeQuestionImageImpl(questionId: number) {
 // ------------------------------------------------------------------ settings
 
 export const LOGO_KEY = "org_logo_url";
+export const DURATION_KEY = "default_duration_seconds";
+export const FALLBACK_DURATION = 30;
 
 export async function getSettingsImpl() {
   const { data } = await supabaseAdmin.from("app_settings").select("key, value");
   const map: Record<string, string | null> = {};
   for (const row of data ?? []) map[row.key] = row.value;
-  return { logoUrl: map[LOGO_KEY] ?? null };
+  const parsed = Number(map[DURATION_KEY]);
+  return {
+    logoUrl: map[LOGO_KEY] ?? null,
+    defaultDurationSeconds:
+      Number.isFinite(parsed) && parsed > 0 ? parsed : FALLBACK_DURATION,
+  };
+}
+
+/** Default answer time for newly created questions (5-second steps). */
+export async function setDefaultDurationImpl(seconds: number) {
+  if (seconds < 5 || seconds > 120 || seconds % 5 !== 0) {
+    throw new GameError("INVALID", "זמן ברירת המחדל חייב להיות בין 5 ל-120 שניות בקפיצות של 5.");
+  }
+  const { error } = await supabaseAdmin
+    .from("app_settings")
+    .upsert(
+      { key: DURATION_KEY, value: String(seconds), updated_at: new Date().toISOString() },
+      { onConflict: "key" },
+    );
+  if (error) throw new GameError("DB_ERROR", error.message);
+  return { defaultDurationSeconds: seconds };
 }
 
 export async function uploadLogoImpl(input: {

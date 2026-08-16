@@ -25,7 +25,7 @@ import {
 import {
   CATEGORY_LABEL,
   computeStatistics,
-  nextAction,
+  
   type AnswerId,
   type GameAction,
 } from "@/lib/quiz";
@@ -49,7 +49,7 @@ function PresentPage() {
   const hydrated = useHydrated();
   const [host, setHost] = useState<HostIdentity | null>(null);
   const [checked, setChecked] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [, setBusy] = useState(false);
   const [sound, setSound] = useState(false);
 
   const now = useServerClock();
@@ -301,63 +301,14 @@ function PresentPage() {
         </section>
       )}
 
-      <footer className="surface-card flex flex-wrap items-center gap-2 p-3">
-        {(() => {
-          const step = session
-            ? nextAction(session.phase, session.current_question_index, totalQuestions)
-            : null;
-          return (
-            <button
-              onClick={() => step && void run(step.action)}
-              disabled={busy || !step}
-              className="h-12 flex-1 rounded-xl bg-gradient-accent px-6 font-bold text-primary-foreground disabled:opacity-50"
-            >
-              {step ? `${step.label} ←` : "המשחק הסתיים"}
-            </button>
-          );
-        })()}
-        <button
-          onClick={() => void run("LOCK")}
-          disabled={busy || session?.phase !== "QUESTION_ACTIVE"}
-          className="h-12 rounded-xl border border-input px-4 font-semibold disabled:opacity-50"
-        >
-          נעילת שאלה
-        </button>
-        <button
-          onClick={() => void toggleSound()}
-          className="h-12 rounded-xl border border-input px-4 text-sm font-semibold"
-        >
-          {sound ? "🔊 צלילים פעילים" : "🔇 הפעלת צלילים"}
-        </button>
-
-        <button
-          onClick={() => void run("ADD_BOTS", 10)}
-          disabled={busy}
-          className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
-        >
-          + 10 בוטים
-        </button>
-        <button
-          onClick={() => void run("CLEAR_BOTS")}
-          disabled={busy}
-          className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
-        >
-          ניקוי בוטים
-        </button>
-        <button
-          onClick={() => void run("RESET")}
-          disabled={busy}
-          className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
-        >
-          איפוס
-        </button>
-        <Link
-          to="/admin"
-          className="h-12 rounded-xl border border-input px-4 text-sm font-semibold leading-[3rem]"
-        >
-          ניהול
-        </Link>
-      </footer>
+      {/* Projected screen: no management controls. Sound stays as a discreet toggle. */}
+      <button
+        onClick={() => void toggleSound()}
+        aria-label={sound ? "כיבוי צלילים" : "הפעלת צלילים"}
+        className="fixed bottom-4 left-4 h-10 w-10 rounded-full border border-input bg-background/70 text-sm opacity-40 transition-opacity hover:opacity-100"
+      >
+        {sound ? "🔊" : "🔇"}
+      </button>
     </main>
   );
 }
