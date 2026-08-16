@@ -51,6 +51,21 @@ function AdminPage() {
   const [openId, setOpenId] = useState<number | null>(null);
   const [game, setGame] = useState<HostIdentity | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [defaultDuration, setDefaultDuration] = useState(30);
+
+  // ------------------------------------------------ live control of the game
+  const now = useServerClock();
+  const { session } = useLiveSession(game?.sessionId ?? null);
+  const players = useLivePlayers(game?.sessionId ?? null);
+  const sessionQuestions = useSessionQuestions(game?.sessionId ?? null);
+  const questionIndex = session?.current_question_index ?? 0;
+  const totalLive = session?.total_questions ?? sessionQuestions.length;
+  const liveQuestion = sessionQuestions.find((q) => q.id === questionIndex) ?? null;
+  const { seconds } = useCountdown(
+    session?.phase === "QUESTION_ACTIVE" ? session.question_ends_at : null,
+    now,
+    liveQuestion?.durationSeconds ?? 20,
+  );
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? sessionStorage.getItem(PASS_KEY) : null;
@@ -59,6 +74,28 @@ function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const run = useCallback(
+    async (action: HostControlAction, count?: number) => {
+      const host = game;
+      if (!host) return;
+      setBusy(true);
+      try {
+        await hostCommand({
+          data: { sessionId: host.sessionId, hostSecret: host.hostSecret, action, count },
+        });
+        if (action === "DELETE") {
+          hostStorage.clear();
+          setGame(null);
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "הפעולה נכשלה.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [game],
+  );
+
   const load = async (code: string) => {
     const [list, settings] = await Promise.all([
       adminListQuestions({ data: { passcode: code } }),
@@ -66,6 +103,19 @@ function AdminPage() {
     ]);
     setQuestions(list);
     setLogoUrl(settings.logoUrl);
+    setDefaultDuration(settings.defaultDurationSeconds);
+  };
+
+  const changeDefaultDuration = async (seconds: number) => {
+    const next = Math.min(120, Math.max(5, seconds));
+    const previous = defaultDuration;
+    setDefaultDuration(next);
+    try {
+      await adminSetDefaultDuration({ data: { passcode, seconds: next } });
+    } catch (error) {
+      setDefaultDuration(previous);
+      toast.error(error instanceof Error ? error.message : "שמירת ההגדרה נכשלה.");
+    }
   };
 
   const fileToBase64 = async (file: File) => {
