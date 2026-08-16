@@ -155,7 +155,7 @@ export async function createQuestionImpl() {
       answer_b: "תשובה ב",
       answer_c: "תשובה ג",
       answer_d: "תשובה ד",
-      duration_seconds: 20,
+      duration_seconds: defaultDurationSeconds,
       scoring_mode: "QUIZ",
       is_placeholder: true,
       order_index: nextOrder,
