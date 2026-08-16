@@ -16,12 +16,37 @@ import {
   adminReorderQuestions,
   adminRestoreDefaults,
   adminSaveQuestion,
+  adminSetDefaultDuration,
   adminSetQuestionEnabled,
   adminUploadLogo,
   adminUploadQuestionImage,
 } from "@/lib/admin.functions";
-import { hostStorage, useHydrated, type HostIdentity } from "@/lib/use-game";
-import { ANSWER_IDS, CATEGORY_LABEL, TOTAL_QUESTIONS, type AnswerId } from "@/lib/quiz";
+import {
+  hostStorage,
+  useCountdown,
+  useHydrated,
+  useLivePlayers,
+  useLiveSession,
+  useServerClock,
+  useSessionQuestions,
+  type HostIdentity,
+} from "@/lib/use-game";
+import {
+  ANSWER_IDS,
+  CATEGORY_LABEL,
+  TOTAL_QUESTIONS,
+  nextAction,
+  type AnswerId,
+  type GameAction,
+} from "@/lib/quiz";
+
+type HostControlAction =
+  | GameAction
+  | "RESET"
+  | "DELETE"
+  | "ADD_BOTS"
+  | "CLEAR_BOTS"
+  | "TOGGLE_LATE_JOIN";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
