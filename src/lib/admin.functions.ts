@@ -1,16 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const passcode = z.string().min(1).max(200);
+const token = z.string().min(1);
 const answerId = z.enum(["A", "B", "C", "D"]);
 
 export const adminLogin = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ passcode }).parse(data))
+  .inputValidator((data: unknown) => z.object({ token }).parse(data))
   .handler(async ({ data }) => {
     const { assertAdmin } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return { ok: true as const };
     } catch (error) {
       if (error instanceof GameError) return { ok: false as const, message: error.message };
@@ -19,12 +19,12 @@ export const adminLogin = createServerFn({ method: "POST" })
   });
 
 export const adminListQuestions = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ passcode }).parse(data))
+  .inputValidator((data: unknown) => z.object({ token }).parse(data))
   .handler(async ({ data }) => {
     const { assertAdmin, listAdminQuestions } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await listAdminQuestions();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "טעינת השאלות נכשלה.");
@@ -35,7 +35,7 @@ export const adminSaveQuestion = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
       .object({
-        passcode,
+        token,
         question: z.object({
           id: z.number().int().min(1),
           pairId: z.number().int().min(1).max(999).nullable().optional(),
@@ -60,7 +60,7 @@ export const adminSaveQuestion = createServerFn({ method: "POST" })
     const { assertAdmin, saveQuestionImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await saveQuestionImpl(data.question);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שמירת השאלה נכשלה.");
@@ -71,7 +71,7 @@ export const adminUploadQuestionImage = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
       .object({
-        passcode,
+        token,
         questionId: z.number().int().min(1),
         fileName: z.string().min(1).max(200),
         contentType: z.string().min(1).max(100),
@@ -83,7 +83,7 @@ export const adminUploadQuestionImage = createServerFn({ method: "POST" })
     const { assertAdmin, uploadQuestionImageImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await uploadQuestionImageImpl(data);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "העלאת התמונה נכשלה.");
@@ -92,13 +92,13 @@ export const adminUploadQuestionImage = createServerFn({ method: "POST" })
 
 export const adminRemoveQuestionImage = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
-    z.object({ passcode, questionId: z.number().int().min(1) }).parse(data),
+    z.object({ token, questionId: z.number().int().min(1) }).parse(data),
   )
   .handler(async ({ data }) => {
     const { assertAdmin, removeQuestionImageImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await removeQuestionImageImpl(data.questionId);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "הסרת התמונה נכשלה.");
@@ -106,12 +106,12 @@ export const adminRemoveQuestionImage = createServerFn({ method: "POST" })
   });
 
 export const adminCreateQuestion = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ passcode }).parse(data))
+  .inputValidator((data: unknown) => z.object({ token }).parse(data))
   .handler(async ({ data }) => {
     const { assertAdmin, createQuestionImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await createQuestionImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "הוספת השאלה נכשלה.");
@@ -120,13 +120,13 @@ export const adminCreateQuestion = createServerFn({ method: "POST" })
 
 export const adminDeleteQuestion = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
-    z.object({ passcode, questionId: z.number().int().min(1) }).parse(data),
+    z.object({ token, questionId: z.number().int().min(1) }).parse(data),
   )
   .handler(async ({ data }) => {
     const { assertAdmin, deleteQuestionImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await deleteQuestionImpl(data.questionId);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "מחיקת השאלה נכשלה.");
@@ -136,14 +136,14 @@ export const adminDeleteQuestion = createServerFn({ method: "POST" })
 export const adminSetQuestionEnabled = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
-      .object({ passcode, questionId: z.number().int().min(1), isEnabled: z.boolean() })
+      .object({ token, questionId: z.number().int().min(1), isEnabled: z.boolean() })
       .parse(data),
   )
   .handler(async ({ data }) => {
     const { assertAdmin, setQuestionEnabledImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await setQuestionEnabledImpl(data.questionId, data.isEnabled);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "העדכון נכשל.");
@@ -152,13 +152,13 @@ export const adminSetQuestionEnabled = createServerFn({ method: "POST" })
 
 export const adminReorderQuestions = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
-    z.object({ passcode, orderedIds: z.array(z.number().int().min(1)).min(1) }).parse(data),
+    z.object({ token, orderedIds: z.array(z.number().int().min(1)).min(1) }).parse(data),
   )
   .handler(async ({ data }) => {
     const { assertAdmin, reorderQuestionsImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await reorderQuestionsImpl(data.orderedIds);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שינוי הסדר נכשל.");
@@ -166,12 +166,12 @@ export const adminReorderQuestions = createServerFn({ method: "POST" })
   });
 
 export const adminRestoreDefaults = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ passcode }).parse(data))
+  .inputValidator((data: unknown) => z.object({ token }).parse(data))
   .handler(async ({ data }) => {
     const { assertAdmin, restoreDefaultQuestionsImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await restoreDefaultQuestionsImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שחזור השאלות נכשל.");
@@ -179,12 +179,12 @@ export const adminRestoreDefaults = createServerFn({ method: "POST" })
   });
 
 export const adminGetSettings = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ passcode }).parse(data))
+  .inputValidator((data: unknown) => z.object({ token }).parse(data))
   .handler(async ({ data }) => {
     const { assertAdmin, getSettingsImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await getSettingsImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "טעינת ההגדרות נכשלה.");
@@ -193,13 +193,13 @@ export const adminGetSettings = createServerFn({ method: "POST" })
 
 export const adminSetDefaultDuration = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
-    z.object({ passcode, seconds: z.number().int().min(5).max(120) }).parse(data),
+    z.object({ token, seconds: z.number().int().min(5).max(120) }).parse(data),
   )
   .handler(async ({ data }) => {
     const { assertAdmin, setDefaultDurationImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await setDefaultDurationImpl(data.seconds);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שמירת ההגדרה נכשלה.");
@@ -208,13 +208,13 @@ export const adminSetDefaultDuration = createServerFn({ method: "POST" })
 
 export const adminSetShowInsights = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
-    z.object({ passcode, show: z.boolean() }).parse(data),
+    z.object({ token, show: z.boolean() }).parse(data),
   )
   .handler(async ({ data }) => {
     const { assertAdmin, setShowInsightsImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await setShowInsightsImpl(data.show);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שמירת ההגדרה נכשלה.");
@@ -225,7 +225,7 @@ export const adminUploadLogo = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
       .object({
-        passcode,
+        token,
         fileName: z.string().min(1).max(200),
         contentType: z.string().min(1).max(100),
         base64: z.string().min(1),
@@ -236,7 +236,7 @@ export const adminUploadLogo = createServerFn({ method: "POST" })
     const { assertAdmin, uploadLogoImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await uploadLogoImpl(data);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "העלאת הלוגו נכשלה.");
@@ -244,12 +244,12 @@ export const adminUploadLogo = createServerFn({ method: "POST" })
   });
 
 export const adminRemoveLogo = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ passcode }).parse(data))
+  .inputValidator((data: unknown) => z.object({ token }).parse(data))
   .handler(async ({ data }) => {
     const { assertAdmin, removeLogoImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await removeLogoImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "הסרת הלוגו נכשלה.");
@@ -257,15 +257,52 @@ export const adminRemoveLogo = createServerFn({ method: "POST" })
   });
 
 export const adminCreateGame = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ passcode }).parse(data))
+  .inputValidator((data: unknown) => z.object({ token }).parse(data))
   .handler(async ({ data }) => {
     const { assertAdmin } = await import("./admin.server");
     const { createGameImpl, GameError } = await import("./game.server");
     try {
-      assertAdmin(data.passcode);
+      assertAdmin(data.token);
       return await createGameImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "יצירת המשחק נכשלה.");
+    }
+  });
+
+
+export const adminAddAuthorizedAdmin = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ token, email: z.string().email() }).parse(data))
+  .handler(async ({ data }) => {
+    const { assertAdmin, addAuthorizedAdminImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      return await addAuthorizedAdminImpl(data.token, data.email);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "הוספת המנהל נכשלה.");
+    }
+  });
+
+export const adminRemoveAuthorizedAdmin = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ token, email: z.string().email() }).parse(data))
+  .handler(async ({ data }) => {
+    const { assertAdmin, removeAuthorizedAdminImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      return await removeAuthorizedAdminImpl(data.token, data.email);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "הסרת המנהל נכשלה.");
+    }
+  });
+
+export const adminListAuthorizedAdmins = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ token }).parse(data))
+  .handler(async ({ data }) => {
+    const { assertAdmin, listAuthorizedAdminsImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      return await listAuthorizedAdminsImpl(data.token);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "טעינת המנהלים נכשלה.");
     }
   });
 

@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { auth, googleProvider } from "@/integrations/firebase/client";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { toast } from "sonner";
 
 import { hostCommand } from "@/lib/game.functions";
@@ -71,9 +73,11 @@ const PASS_KEY = "impact2026.admin";
 
 function AdminPage() {
   const hydrated = useHydrated();
-  const [passcode, setPasscode] = useState("");
+  const [token, settoken] = useState("");
   const [authed, setAuthed] = useState(false);
-  const [input, setInput] = useState("");
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [adminsList, setAdminsList] = useState<string[]>([]);
+  const [newAdminEmail, setNewAdminEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
@@ -127,8 +131,8 @@ function AdminPage() {
 
   const load = async (code: string) => {
     const [list, settings] = await Promise.all([
-      adminListQuestions({ data: { passcode: code } }),
-      adminGetSettings({ data: { passcode: code } }),
+      adminListQuestions({ data: { token: code } }),
+      adminGetSettings({ data: { token: code } }),
     ]);
     setQuestions(list);
     setLogoUrl(settings.logoUrl);
@@ -141,7 +145,7 @@ function AdminPage() {
     const previous = defaultDuration;
     setDefaultDuration(next);
     try {
-      await adminSetDefaultDuration({ data: { passcode, seconds: next } });
+      await adminSetDefaultDuration({ data: { token, seconds: next } });
     } catch (error) {
       setDefaultDuration(previous);
       toast.error(error instanceof Error ? error.message : "שמירת ההגדרה נכשלה.");
@@ -152,7 +156,7 @@ function AdminPage() {
     const previous = showInsights;
     setShowInsights(show);
     try {
-      await adminSetShowInsights({ data: { passcode, show } });
+      await adminSetShowInsights({ data: { token, show } });
     } catch (error) {
       setShowInsights(previous);
       toast.error(error instanceof Error ? error.message : "שמירת ההגדרה נכשלה.");
@@ -166,25 +170,7 @@ function AdminPage() {
     return btoa(binary);
   };
 
-  const unlock = async (code: string, silent = false) => {
-    setBusy(true);
-    try {
-      const res = await adminLogin({ data: { passcode: code } });
-      if (!res.ok) {
-        sessionStorage.removeItem(PASS_KEY);
-        if (!silent) toast.error("קוד ניהול שגוי.");
-        return;
-      }
-      sessionStorage.setItem(PASS_KEY, code);
-      setPasscode(code);
-      setAuthed(true);
-      await load(code);
-    } catch (error) {
-      if (!silent) toast.error(error instanceof Error ? error.message : "הכניסה נכשלה.");
-    } finally {
-      setBusy(false);
-    }
-  };
+
 
   const patch = (id: number, changes: Partial<AdminQuestion>) => {
     setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, ...changes } : q)));
@@ -205,7 +191,7 @@ function AdminPage() {
     try {
       await adminSaveQuestion({
         data: {
-          passcode,
+          token,
           question: {
             id: q.id,
             category: q.category,
@@ -243,7 +229,7 @@ function AdminPage() {
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
       const res = await adminUploadQuestionImage({
         data: {
-          passcode,
+          token,
           questionId: id,
           fileName: file.name,
           contentType: file.type || "image/png",
@@ -262,7 +248,7 @@ function AdminPage() {
   const removeImage = async (id: number) => {
     setBusy(true);
     try {
-      await adminRemoveQuestionImage({ data: { passcode, questionId: id } });
+      await adminRemoveQuestionImage({ data: { token, questionId: id } });
       patch(id, { imageUrl: null });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "הסרת התמונה נכשלה.");
@@ -274,8 +260,8 @@ function AdminPage() {
   const addQuestion = async () => {
     setBusy(true);
     try {
-      const res = await adminCreateQuestion({ data: { passcode } });
-      await load(passcode);
+      const res = await adminCreateQuestion({ data: { token } });
+      await load(token);
       setOpenId(res.id);
       toast.success("נוספה שאלה חדשה.");
     } catch (error) {
@@ -289,7 +275,7 @@ function AdminPage() {
     if (!confirm(`למחוק את שאלה ${id}?`)) return;
     setBusy(true);
     try {
-      await adminDeleteQuestion({ data: { passcode, questionId: id } });
+      await adminDeleteQuestion({ data: { token, questionId: id } });
       setQuestions((prev) => prev.filter((q) => q.id !== id));
       if (openId === id) setOpenId(null);
       toast.success("השאלה נמחקה.");
@@ -303,7 +289,7 @@ function AdminPage() {
   const toggleEnabled = async (id: number, isEnabled: boolean) => {
     patch(id, { isEnabled });
     try {
-      await adminSetQuestionEnabled({ data: { passcode, questionId: id, isEnabled } });
+      await adminSetQuestionEnabled({ data: { token, questionId: id, isEnabled } });
     } catch (error) {
       patch(id, { isEnabled: !isEnabled });
       toast.error(error instanceof Error ? error.message : "העדכון נכשל.");
@@ -319,10 +305,10 @@ function AdminPage() {
     next.splice(target, 0, item!);
     setQuestions(next);
     try {
-      await adminReorderQuestions({ data: { passcode, orderedIds: next.map((q) => q.id) } });
+      await adminReorderQuestions({ data: { token, orderedIds: next.map((q) => q.id) } });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "שינוי הסדר נכשל.");
-      await load(passcode);
+      await load(token);
     }
   };
 
@@ -330,8 +316,8 @@ function AdminPage() {
     if (!confirm("לשחזר את 16 שאלות ברירת המחדל? כל השינויים יימחקו.")) return;
     setBusy(true);
     try {
-      await adminRestoreDefaults({ data: { passcode } });
-      await load(passcode);
+      await adminRestoreDefaults({ data: { token } });
+      await load(token);
       toast.success("השאלות שוחזרו.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "השחזור נכשל.");
@@ -345,7 +331,7 @@ function AdminPage() {
     try {
       const res = await adminUploadLogo({
         data: {
-          passcode,
+          token,
           fileName: file.name,
           contentType: file.type || "image/png",
           base64: await fileToBase64(file),
@@ -363,7 +349,7 @@ function AdminPage() {
   const removeLogo = async () => {
     setBusy(true);
     try {
-      await adminRemoveLogo({ data: { passcode } });
+      await adminRemoveLogo({ data: { token } });
       setLogoUrl(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "הסרת הלוגו נכשלה.");
@@ -376,7 +362,7 @@ function AdminPage() {
   const startQuiz = async () => {
     setBusy(true);
     try {
-      const created = await adminCreateGame({ data: { passcode } });
+      const created = await adminCreateGame({ data: { token } });
       const identity: HostIdentity = {
         sessionId: created.sessionId,
         pin: created.pin,
@@ -852,3 +838,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+

@@ -142,6 +142,7 @@ function PlayPage() {
           {me ? `${me.total_score.toLocaleString("he-IL")} נקודות` : "0 נקודות"}
           {myRank > 0 && ` · מיקום ${myRank}`}
         </p>
+      </div>
       <div className="flex items-center gap-2">
         <img src="/ministry-logo.png" alt="משרד העלייה והקליטה" className="h-6 w-auto object-contain" />
         <div className="h-4 w-px bg-border"></div>

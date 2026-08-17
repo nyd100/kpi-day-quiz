@@ -1,22 +1,64 @@
 // Server-only admin console engine. Protected by a shared admin passcode.
-import { adminDb, adminStorage } from "@/integrations/firebase/admin";
+import { adminDb, adminStorage, adminAuth } from "@/integrations/firebase/admin";
 import { GameError } from "@/lib/game.server";
 import { DEFAULT_QUESTIONS } from "@/lib/default-questions";
 import type { AnswerId } from "@/lib/quiz";
 import * as crypto from "crypto";
 
 const BUCKET = "question-images";
+const SUPER_ADMINS = ["nathand@moia.gov.il", "nyd100@gmail.com"];
 
-export function assertAdmin(passcode: string) {
-  const expected = process.env["ADMIN_PASSCODE"];
-  if (!expected) throw new GameError("CONFIG", "קוד הניהול לא הוגדר במערכת.");
-  const a = new TextEncoder().encode(passcode ?? "");
-  const b = new TextEncoder().encode(expected);
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+export async function assertAdmin(token: string) {
+  if (!token) throw new GameError("FORBIDDEN", "נדרש אימות כדי לגשת לממשק הניהול.");
+  try {
+    const decoded = await adminAuth.verifyIdToken(token);
+    const email = decoded.email?.toLowerCase() || "";
+    
+    if (SUPER_ADMINS.includes(email)) return { email, isSuperAdmin: true };
+
+    const adminDoc = await adminDb.collection("authorized_admins").doc(email).get();
+    if (adminDoc.exists) {
+      return { email, isSuperAdmin: false };
+    }
+
+    throw new GameError("FORBIDDEN", "אין לך הרשאות ניהול למערכת זו.");
+  } catch (error: any) {
+    throw new GameError("FORBIDDEN", "האימות נכשל או פג תוקפו. אנא התחבר מחדש.");
   }
-  if (diff !== 0) throw new GameError("FORBIDDEN", "קוד ניהול שגוי.");
+}
+
+export async function addAuthorizedAdminImpl(token: string, emailToAdd: string) {
+  const { isSuperAdmin } = await assertAdmin(token);
+  if (!isSuperAdmin) throw new GameError("FORBIDDEN", "רק מנהלים ראשיים יכולים להוסיף מנהלים אחרים.");
+  
+  const email = emailToAdd.trim().toLowerCase();
+  if (!email) throw new GameError("INVALID", "כתובת אימייל לא חוקית.");
+  
+  await adminDb.collection("authorized_admins").doc(email).set({
+    email,
+    addedAt: new Date().toISOString(),
+  });
+  return { ok: true };
+}
+
+export async function removeAuthorizedAdminImpl(token: string, emailToRemove: string) {
+  const { isSuperAdmin } = await assertAdmin(token);
+  if (!isSuperAdmin) throw new GameError("FORBIDDEN", "רק מנהלים ראשיים יכולים להסיר מנהלים אחרים.");
+  
+  const email = emailToRemove.trim().toLowerCase();
+  if (SUPER_ADMINS.includes(email)) throw new GameError("FORBIDDEN", "לא ניתן להסיר מנהל ראשי של המערכת.");
+  
+  await adminDb.collection("authorized_admins").doc(email).delete();
+  return { ok: true };
+}
+
+export async function listAuthorizedAdminsImpl(token: string) {
+  const { isSuperAdmin } = await assertAdmin(token);
+  if (!isSuperAdmin) return []; // Non-super admins don't need to see the list
+
+  const snap = await adminDb.collection("authorized_admins").get();
+  const list = snap.docs.map(d => d.data().email as string);
+  return [...SUPER_ADMINS, ...list];
 }
 
 export type AdminQuestion = {
