@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import ministryLogo from "@/assets/ministry-logo.png.asset.json";
 import { AnswerTile } from "@/components/quiz/answer-tile";
 import { ConnectionBadge } from "@/components/quiz/connection-badge";
 import { Countdown } from "@/components/quiz/countdown";
@@ -240,11 +239,17 @@ function PresentPage() {
     <main className="mx-auto flex min-h-screen w-[96vw] max-w-[1920px] flex-col gap-6 py-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
-          <div className="rounded-xl bg-white p-2">
+          <div className="flex items-center gap-4 rounded-xl bg-white p-2">
             <img
-              src={ministryLogo.url}
-              alt="לוגו משרד העלייה והקליטה – חטיבת תקציבים, אסטרטגיה ותכנון מדיניות"
-              className="h-12 w-auto"
+              src="/ministry-logo.png"
+              alt="לוגו משרד העלייה והקליטה"
+              className="h-12 w-auto object-contain"
+            />
+            <div className="h-8 w-px bg-border"></div>
+            <img
+              src="/strategy-division-logo.png"
+              alt="חטיבת אסטרטגיה ותכנון מדיניות"
+              className="h-12 w-auto object-contain"
             />
           </div>
           <div>
@@ -350,7 +355,7 @@ function PresentPage() {
       <button
         onClick={() => void toggleSound()}
         aria-label={sound ? "כיבוי צלילים" : "הפעלת צלילים"}
-        className="fixed bottom-4 left-4 h-10 w-10 rounded-full border border-input bg-background/70 text-sm opacity-40 transition-opacity hover:opacity-100"
+        className="fixed bottom-4 start-4 h-10 w-10 rounded-full border border-input bg-background/70 text-sm opacity-40 transition-opacity hover:opacity-100"
       >
         {sound ? "🔊" : "🔇"}
       </button>

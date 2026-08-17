@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { db } from "@/integrations/firebase/client";
+import { collection, doc, onSnapshot, query, orderBy, where, getDocs, getDoc } from "firebase/firestore";
 import { getServerTime } from "@/lib/game.functions";
 import type { AnswerRow, PlayerRow, QuizQuestion, SessionRow } from "@/lib/quiz";
+import { signInAnonymously, getAuth } from "firebase/auth";
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "offline";
 
@@ -41,105 +43,113 @@ export function useServerClock() {
   return useCallback(() => Date.now() + offset, [offset]);
 }
 
-export function useQuestions() {
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+/** Make sure Anonymous Auth is initialized */
+function useEnsureAuth() {
   useEffect(() => {
-    let active = true;
-    void supabase
-      .from("questions_public")
-      .select("*")
-      .order("id")
-      .then(({ data }) => {
-        if (!active || !data) return;
-        setQuestions(
-          data.map((q) => ({
-            id: q.id,
-            category: q.category as QuizQuestion["category"],
-            pairId: q.pair_id,
-            title: q.title,
-            subtitle: q.subtitle,
-            answers: [
-              { id: "A" as const, text: q.answer_a },
-              { id: "B" as const, text: q.answer_b },
-              { id: "C" as const, text: q.answer_c },
-              { id: "D" as const, text: q.answer_d },
-            ],
-            durationSeconds: q.duration_seconds,
-            scoringMode: q.scoring_mode as QuizQuestion["scoringMode"],
-            executiveInsight: q.executive_insight,
-            isPlaceholder: q.is_placeholder,
-            imageUrl: (q as { image_url: string | null }).image_url ?? null,
-          })),
-        );
-      });
-    return () => {
-      active = false;
-    };
+    const auth = getAuth();
+    if (!auth.currentUser) {
+      signInAnonymously(auth).catch(console.error);
+    }
+  }, []);
+}
+
+export function useQuestions() {
+  useEnsureAuth();
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  
+  useEffect(() => {
+    const q = query(collection(db, "questions"), orderBy("orderIndex"));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setQuestions(
+        snap.docs.map((d) => {
+          const qData = d.data();
+          return {
+            id: Number(d.id),
+            category: qData.category as QuizQuestion["category"],
+            pairId: qData.pairId,
+            title: qData.title,
+            subtitle: qData.subtitle,
+            answers: qData.answers,
+            durationSeconds: qData.durationSeconds,
+            scoringMode: qData.scoringMode as QuizQuestion["scoringMode"],
+            executiveInsight: qData.executiveInsight,
+            isPlaceholder: qData.isPlaceholder,
+            imageUrl: qData.imageUrl ?? null,
+          };
+        })
+      );
+    });
+    return () => unsubscribe();
   }, []);
   return questions;
 }
 
-/** Authoritative session state, kept live over realtime with a safety refetch. */
 export function useLiveSession(sessionId: string | null) {
+  useEnsureAuth();
   const [session, setSession] = useState<SessionRow | null>(null);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
 
   const refetch = useCallback(async () => {
     if (!sessionId) return;
-    // The PIN column is intentionally not readable by clients (see RLS/column grants).
-    const { data } = await supabase
-      .from("game_sessions")
-      .select(
-        "id, title, status, phase, current_question_index, question_started_at, question_ends_at, revealed_answer_id, allow_late_join, created_at, expires_at, updated_at, total_questions",
-      )
-      .eq("id", sessionId)
-      .maybeSingle();
-    if (data) setSession(data as unknown as SessionRow);
+    const snap = await getDoc(doc(db, "sessions", sessionId));
+    if (snap.exists()) {
+      const d = snap.data();
+      setSession({
+        id: snap.id,
+        title: d.title,
+        status: d.status,
+        phase: d.phase,
+        current_question_index: d.currentQuestionIndex,
+        question_started_at: d.questionStartedAt,
+        question_ends_at: d.questionEndsAt,
+        revealed_answer_id: d.revealedAnswerId,
+        allow_late_join: d.allowLateJoin,
+        created_at: d.createdAt,
+        expires_at: d.expiresAt,
+        updated_at: d.updatedAt,
+        total_questions: d.totalQuestions,
+      } as unknown as SessionRow);
+    }
   }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
-    let mounted = true;
     setConnection("connecting");
-    void refetch();
 
-    const channel = supabase
-      .channel(`session-${sessionId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "game_sessions", filter: `id=eq.${sessionId}` },
-        (payload) => {
-          if (!mounted) return;
-          if (payload.eventType === "DELETE") return;
-          setSession(payload.new as unknown as SessionRow);
-        },
-      )
-      .subscribe((status) => {
-        if (!mounted) return;
-        if (status === "SUBSCRIBED") {
-          setConnection("connected");
-          void refetch();
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          setConnection("reconnecting");
-        } else if (status === "CLOSED") {
-          setConnection("reconnecting");
-        }
-      });
+    const unsubscribe = onSnapshot(doc(db, "sessions", sessionId), (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data();
+      setSession({
+        id: snap.id,
+        title: d.title,
+        status: d.status,
+        phase: d.phase,
+        current_question_index: d.currentQuestionIndex,
+        question_started_at: d.questionStartedAt,
+        question_ends_at: d.questionEndsAt,
+        revealed_answer_id: d.revealedAnswerId,
+        allow_late_join: d.allowLateJoin,
+        created_at: d.createdAt,
+        expires_at: d.expiresAt,
+        updated_at: d.updatedAt,
+        total_questions: d.totalQuestions,
+      } as unknown as SessionRow);
+      setConnection("connected");
+    }, (error) => {
+      setConnection("reconnecting");
+    });
 
-    const poll = setInterval(() => void refetch(), 6000); // safety net only
     const onOnline = () => setConnection("reconnecting");
     const onOffline = () => setConnection("offline");
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
 
     return () => {
-      mounted = false;
-      clearInterval(poll);
+      unsubscribe();
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
-      void supabase.removeChannel(channel);
     };
-  }, [sessionId, refetch]);
+  }, [sessionId]);
 
   return { session, connection, refetchSession: refetch };
 }
@@ -147,91 +157,63 @@ export function useLiveSession(sessionId: string | null) {
 export function useLivePlayers(sessionId: string | null) {
   const [players, setPlayers] = useState<PlayerRow[]>([]);
 
-  const refetch = useCallback(async () => {
-    if (!sessionId) return;
-    const { data } = await supabase
-      .from("game_players")
-      .select("id, session_id, display_name, total_score, correct_count, cumulative_response_ms, is_virtual, joined_at")
-      .eq("session_id", sessionId);
-    if (data) setPlayers(data as unknown as PlayerRow[]);
-  }, [sessionId]);
-
   useEffect(() => {
     if (!sessionId) return;
-    void refetch();
-    const channel = supabase
-      .channel(`players-${sessionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "game_players",
-          filter: `session_id=eq.${sessionId}`,
-        },
-        () => void refetch(),
-      )
-      .subscribe();
-    const poll = setInterval(() => void refetch(), 8000);
-    return () => {
-      clearInterval(poll);
-      void supabase.removeChannel(channel);
-    };
-  }, [sessionId, refetch]);
+    const q = collection(db, `sessions/${sessionId}/players`);
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setPlayers(snap.docs.map(d => {
+        const p = d.data();
+        return {
+          id: d.id,
+          session_id: sessionId,
+          display_name: p.displayName,
+          total_score: p.totalScore,
+          correct_count: p.correctCount,
+          cumulative_response_ms: p.cumulativeResponseMs,
+          is_virtual: p.isVirtual,
+          joined_at: p.joinedAt,
+        } as unknown as PlayerRow;
+      }));
+    });
+    return () => unsubscribe();
+  }, [sessionId]);
 
   return players;
 }
 
-/** Answers for a question — readable only once the question is locked/revealed. */
 export function useQuestionAnswers(sessionId: string | null, questionId: number, enabled: boolean) {
   const [answers, setAnswers] = useState<AnswerRow[]>([]);
   
-  const load = useCallback(async (active: boolean) => {
-    if (!sessionId || !enabled || questionId < 1) return;
-    const { data } = await supabase
-      .from("game_answers")
-      .select("player_id, question_id, answer_id, is_correct, response_ms, awarded_score")
-      .eq("session_id", sessionId)
-      .eq("question_id", questionId);
-    if (active && data) setAnswers(data as unknown as AnswerRow[]);
-  }, [sessionId, questionId, enabled]);
-
   useEffect(() => {
     if (!sessionId || !enabled || questionId < 1) {
       setAnswers([]);
       return;
     }
-    let active = true;
-    void load(active);
 
-    const channel = supabase
-      .channel(`answers-${sessionId}-${questionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "game_answers",
-          filter: `session_id=eq.${sessionId}`,
-        },
-        () => void load(active),
-      )
-      .subscribe();
+    const q = query(
+      collection(db, `sessions/${sessionId}/answers`),
+      where("questionId", "==", questionId)
+    );
 
-    const id = setInterval(() => void load(active), 3000);
-    return () => {
-      active = false;
-      clearInterval(id);
-      void supabase.removeChannel(channel);
-    };
-  }, [sessionId, questionId, enabled, load]);
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setAnswers(snap.docs.map(d => {
+        const a = d.data();
+        return {
+          player_id: a.playerId,
+          question_id: a.questionId,
+          answer_id: a.answerId,
+          is_correct: a.isCorrect,
+          response_ms: a.responseMs,
+          awarded_score: a.awardedScore,
+        } as unknown as AnswerRow;
+      }));
+    });
+    return () => unsubscribe();
+  }, [sessionId, questionId, enabled]);
+
   return answers;
 }
 
-/**
- * Countdown derived from the absolute backend deadline.
- * A ticking state value drives the recompute, so the number visibly moves.
- */
 export function useCountdown(endsAt: string | null, now: () => number, durationSeconds: number) {
   const [tick, setTick] = useState(0);
 
@@ -250,78 +232,66 @@ export function useCountdown(endsAt: string | null, now: () => number, durationS
       seconds: Math.ceil(remainingMs / 1000),
       ratio: Math.max(0, Math.min(1, remainingMs / (durationSeconds * 1000))),
     };
-    // `tick` intentionally drives the recompute each frame.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endsAt, now, durationSeconds, tick]);
 }
 
-/** Questions frozen into a running session, addressed by position (1-based). */
 export function useSessionQuestions(sessionId: string | null) {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  
   useEffect(() => {
     if (!sessionId) {
       setQuestions([]);
       return;
     }
-    let active = true;
-    const load = async () => {
-      const { data } = await supabase
-        .from("game_session_questions")
-        .select("*")
-        .eq("session_id", sessionId)
-        .order("position");
-      if (!active || !data) return;
+    
+    // Once frozen for a session, questions don't change, so we can just use onSnapshot
+    // or a single fetch with a periodic refresh if we don't want a permanent listener.
+    // Since Firebase real-time listeners are cheap for unmodified data, let's use onSnapshot.
+    const q = query(collection(db, `sessions/${sessionId}/questions`), orderBy("position"));
+    const unsubscribe = onSnapshot(q, (snap) => {
       setQuestions(
-        data.map((q) => ({
-          id: q.position,
-          category: q.category as QuizQuestion["category"],
-          pairId: q.pair_id,
-          title: q.title,
-          subtitle: q.subtitle,
-          answers: [
-            { id: "A" as const, text: q.answer_a },
-            { id: "B" as const, text: q.answer_b },
-            { id: "C" as const, text: q.answer_c },
-            { id: "D" as const, text: q.answer_d },
-          ],
-          durationSeconds: q.duration_seconds,
-          scoringMode: q.scoring_mode as QuizQuestion["scoringMode"],
-          executiveInsight: q.executive_insight,
-          isPlaceholder: false,
-          imageUrl: q.image_url,
-        })),
+        snap.docs.map((d) => {
+          const qData = d.data();
+          return {
+            id: qData.position,
+            category: qData.category as QuizQuestion["category"],
+            pairId: qData.pairId,
+            title: qData.title,
+            subtitle: qData.subtitle,
+            answers: qData.answers,
+            durationSeconds: qData.durationSeconds,
+            scoringMode: qData.scoringMode as QuizQuestion["scoringMode"],
+            executiveInsight: qData.executiveInsight,
+            isPlaceholder: false,
+            imageUrl: qData.imageUrl ?? null,
+          };
+        })
       );
-    };
-    void load();
-    const id = window.setInterval(() => void load(), 10_000);
-    return () => {
-      active = false;
-      window.clearInterval(id);
-    };
+    });
+    return () => unsubscribe();
   }, [sessionId]);
+  
   return questions;
 }
 
-/** Public app setting (e.g. the division logo). */
 export function useAppSetting(key: string) {
   const [value, setValue] = useState<string | null>(null);
+  
   useEffect(() => {
-    let active = true;
-    void supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", key)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (active) setValue(data?.value ?? null);
-      });
-    return () => {
-      active = false;
-    };
+    const unsubscribe = onSnapshot(doc(db, "settings", "global"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setValue(data[key] ?? null);
+      } else {
+        setValue(null);
+      }
+    });
+    return () => unsubscribe();
   }, [key]);
+  
   return value;
 }
-
 
 // ------------------------------------------------------------ local identity
 

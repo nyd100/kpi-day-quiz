@@ -48,7 +48,7 @@ export function ResultsBars({
               )}
             >
               {emphasize && (
-                <div className="absolute -top-4 -right-4 rounded-full bg-success text-success-foreground px-4 py-1 text-sm font-black shadow-lg animate-in zoom-in spin-in-12 duration-500">
+                <div className="absolute -top-4 -end-4 rounded-full bg-success text-success-foreground px-4 py-1 text-sm font-black shadow-lg animate-in zoom-in spin-in-12 duration-500">
                   התשובה הנכונה
                 </div>
               )}
@@ -65,12 +65,12 @@ export function ResultsBars({
                     <p className={cn("text-lg font-bold leading-tight", emphasize && "text-success font-black")}>
                       {answers.find((a) => a.id === id)?.text}
                       {isCorrect && revealPhase >= 1 && !emphasize && (
-                        <span className="mr-2 inline-flex items-center rounded-md bg-success px-2 py-0.5 text-xs font-bold text-success-foreground">
+                        <span className="ms-2 inline-flex items-center rounded-md bg-success px-2 py-0.5 text-xs font-bold text-success-foreground">
                           נכון ✓
                         </span>
                       )}
                     </p>
-                    <div className="text-left shrink-0">
+                    <div className="text-end shrink-0">
                       <p className={cn("tabular text-2xl font-black", emphasize && "text-success")}>
                         {percent}%
                       </p>

@@ -688,7 +688,7 @@ function AdminPage() {
               </div>
               <button
                 onClick={() => setOpenId(openId === q.id ? null : q.id)}
-                className="flex flex-1 items-center justify-between gap-3 p-2 text-right"
+                className="flex flex-1 items-center justify-between gap-3 p-2 text-start"
               >
                 <span className="flex-1">
                   <span className="text-xs font-bold text-primary">

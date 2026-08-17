@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import ministryLogo from "@/assets/ministry-logo.png.asset.json";
 import { joinGame } from "@/lib/game.functions";
 import { playerStorage, useHydrated } from "@/lib/use-game";
 import { validateName, validatePin } from "@/lib/quiz";
@@ -67,9 +66,9 @@ function JoinPage() {
         <header className="mb-8 text-center">
           <div className="mx-auto mb-6 w-full max-w-xs rounded-2xl bg-white p-3">
             <img
-              src={ministryLogo.url}
-              alt="לוגו משרד העלייה והקליטה – חטיבת תקציבים, אסטרטגיה ותכנון מדיניות"
-              className="h-auto w-full"
+              src="/strategy-division-logo.png"
+              alt="חטיבת אסטרטגיה ותכנון מדיניות"
+              className="h-auto w-full object-contain"
             />
           </div>
           <p className="mb-2 text-sm font-semibold tracking-widest text-primary">

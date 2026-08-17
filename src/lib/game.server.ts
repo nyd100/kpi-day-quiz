@@ -1,5 +1,5 @@
 // Server-only game engine. Never imported by client code directly.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { adminDb } from "@/integrations/firebase/admin";
 import {
   computeScore,
   resolveAction,
@@ -10,6 +10,7 @@ import {
   type GameAction,
   type GamePhase,
 } from "@/lib/quiz";
+import * as crypto from "crypto";
 
 export class GameError extends Error {
   code: string;
@@ -37,7 +38,6 @@ function randomPin(): string {
   return String(bytes[0]! % 10000).padStart(4, "0");
 }
 
-/** Deterministic pseudo-random in [0,1) from a seed string. */
 function seeded(seed: string): number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
@@ -52,145 +52,97 @@ type SessionRecord = {
   pin: string;
   status: string;
   phase: GamePhase;
-  current_question_index: number;
-  question_started_at: string | null;
-  question_ends_at: string | null;
-  allow_late_join: boolean;
-  expires_at: string;
-  total_questions: number;
+  currentQuestionIndex: number;
+  questionStartedAt: string | null;
+  questionEndsAt: string | null;
+  allowLateJoin: boolean;
+  expiresAt: string;
+  totalQuestions: number;
+  hostSecretHash?: string;
 };
 
 export async function loadSession(sessionId: string): Promise<SessionRecord> {
-  const { data, error } = await supabaseAdmin
-    .from("game_sessions")
-    .select(
-      "id, pin, status, phase, current_question_index, question_started_at, question_ends_at, allow_late_join, expires_at, total_questions",
-    )
-    .eq("id", sessionId)
-    .maybeSingle();
-  if (error) throw new GameError("DB_ERROR", error.message);
-  if (!data) throw new GameError("NOT_FOUND", "המשחק לא נמצא.");
-  return data as SessionRecord;
+  const snap = await adminDb.collection("sessions").doc(sessionId).get();
+  if (!snap.exists) throw new GameError("NOT_FOUND", "המשחק לא נמצא.");
+  return { id: snap.id, ...snap.data() } as SessionRecord;
 }
 
 export async function assertHost(sessionId: string, hostSecret: string): Promise<SessionRecord> {
   const session = await loadSession(sessionId);
-  const { data } = await supabaseAdmin
-    .from("game_host_secrets")
-    .select("host_secret_hash")
-    .eq("session_id", sessionId)
-    .maybeSingle();
   const hash = await sha256(hostSecret ?? "");
-  if (!data || data.host_secret_hash !== hash) {
+  if (!session.hostSecretHash || session.hostSecretHash !== hash) {
     throw new GameError("FORBIDDEN", "אין הרשאת מנחה למשחק הזה.");
   }
   return session;
 }
 
 async function assertPlayer(sessionId: string, playerId: string, playerSecret: string) {
-  const { data: player } = await supabaseAdmin
-    .from("game_players")
-    .select("id, session_id, display_name, is_virtual")
-    .eq("id", playerId)
-    .maybeSingle();
-  if (!player || player.session_id !== sessionId) {
-    throw new GameError("FORBIDDEN", "השחקן אינו משויך למשחק הזה.");
-  }
-  const { data: secret } = await supabaseAdmin
-    .from("game_player_secrets")
-    .select("player_secret_hash")
-    .eq("player_id", playerId)
-    .maybeSingle();
+  const snap = await adminDb.collection(`sessions/${sessionId}/players`).doc(playerId).get();
+  if (!snap.exists) throw new GameError("FORBIDDEN", "השחקן אינו משויך למשחק הזה.");
+  const player = snap.data() as any;
   const hash = await sha256(playerSecret ?? "");
-  if (!secret || secret.player_secret_hash !== hash) {
+  if (player.playerSecretHash !== hash) {
     throw new GameError("FORBIDDEN", "זיהוי השחקן אינו תקין.");
   }
-  return player;
+  return { id: snap.id, ...player };
 }
 
-/** Snapshot question for a running session, addressed by its position. */
 async function loadQuestion(sessionId: string, position: number) {
-  const { data, error } = await supabaseAdmin
-    .from("game_session_questions")
-    .select("position, category, duration_seconds, scoring_mode")
-    .eq("session_id", sessionId)
-    .eq("position", position)
-    .maybeSingle();
-  if (error) throw new GameError("DB_ERROR", error.message);
-  if (!data) throw new GameError("NOT_FOUND", "השאלה לא נמצאה.");
-  return data;
+  const snap = await adminDb.collection(`sessions/${sessionId}/questions`).doc(String(position)).get();
+  if (!snap.exists) throw new GameError("NOT_FOUND", "השאלה לא נמצאה.");
+  return snap.data() as any;
 }
 
 async function loadKey(sessionId: string, position: number): Promise<AnswerId> {
-  const { data } = await supabaseAdmin
-    .from("game_session_question_keys")
-    .select("correct_answer_id")
-    .eq("session_id", sessionId)
-    .eq("position", position)
-    .maybeSingle();
-  return (data?.correct_answer_id ?? "A") as AnswerId;
+  const snap = await adminDb.collection(`sessions/${sessionId}/keys`).doc(String(position)).get();
+  return (snap.data()?.correctAnswerId ?? "A") as AnswerId;
 }
 
-/**
- * Freezes the currently enabled master questions into the session.
- * Once taken, later master edits/deletes/reorders cannot affect this game.
- */
 async function buildSnapshot(sessionId: string): Promise<number> {
-  const { data: master, error } = await supabaseAdmin
-    .from("questions_public")
-    .select("*")
-    .eq("is_enabled", true)
-    .order("order_index")
-    .order("id");
-  if (error) throw new GameError("DB_ERROR", error.message);
-  const rows = master ?? [];
-  if (rows.length === 0) throw new GameError("NO_QUESTIONS", "אין שאלות פעילות להתחלת משחק.");
+  const qSnap = await adminDb.collection("questions").where("isEnabled", "==", true).orderBy("orderIndex").get();
+  if (qSnap.empty) throw new GameError("NO_QUESTIONS", "אין שאלות פעילות להתחלת משחק.");
+  
+  const keysSnap = await adminDb.collection("question_keys").get();
+  const keyMap = new Map(keysSnap.docs.map(d => [d.id, d.data()]));
 
-  await supabaseAdmin.from("game_session_questions").delete().eq("session_id", sessionId);
-  await supabaseAdmin.from("game_session_question_keys").delete().eq("session_id", sessionId);
+  const batch = adminDb.batch();
+  
+  // Clear existing snapshots if any (for safety, though usually empty)
+  const existingQ = await adminDb.collection(`sessions/${sessionId}/questions`).get();
+  existingQ.docs.forEach(d => batch.delete(d.ref));
+  const existingK = await adminDb.collection(`sessions/${sessionId}/keys`).get();
+  existingK.docs.forEach(d => batch.delete(d.ref));
 
-  const { data: keys } = await supabaseAdmin
-    .from("question_keys_private")
-    .select("question_id, correct_answer_id, explanation");
-  const keyMap = new Map((keys ?? []).map((k) => [k.question_id, k]));
+  qSnap.docs.forEach((doc, i) => {
+    const q = doc.data();
+    const pos = i + 1;
+    const qRef = adminDb.collection(`sessions/${sessionId}/questions`).doc(String(pos));
+    const kRef = adminDb.collection(`sessions/${sessionId}/keys`).doc(String(pos));
+    
+    batch.set(qRef, {
+      position: pos,
+      questionId: Number(doc.id),
+      category: q.category,
+      pairId: q.pairId,
+      title: q.title,
+      subtitle: q.subtitle,
+      answers: q.answers,
+      durationSeconds: q.durationSeconds,
+      scoringMode: q.scoringMode,
+      executiveInsight: q.executiveInsight,
+      imageUrl: q.imageUrl ?? null,
+    });
+    
+    batch.set(kRef, {
+      position: pos,
+      correctAnswerId: keyMap.get(doc.id)?.correctAnswerId ?? "A",
+      explanation: keyMap.get(doc.id)?.explanation ?? null,
+    });
+  });
 
-  const snapshot = rows.map((q, i) => ({
-    session_id: sessionId,
-    position: i + 1,
-    question_id: q.id,
-    category: q.category,
-    pair_id: q.pair_id,
-    title: q.title,
-    subtitle: q.subtitle,
-    answer_a: q.answer_a,
-    answer_b: q.answer_b,
-    answer_c: q.answer_c,
-    answer_d: q.answer_d,
-    duration_seconds: q.duration_seconds,
-    scoring_mode: q.scoring_mode,
-    executive_insight: q.executive_insight,
-    image_url: (q as { image_url: string | null }).image_url ?? null,
-  }));
-  const keyRows = rows.map((q, i) => ({
-    session_id: sessionId,
-    position: i + 1,
-    correct_answer_id: keyMap.get(q.id)?.correct_answer_id ?? "A",
-    explanation: keyMap.get(q.id)?.explanation ?? null,
-  }));
-
-  const { error: insertError } = await supabaseAdmin
-    .from("game_session_questions")
-    .insert(snapshot);
-  if (insertError) throw new GameError("DB_ERROR", insertError.message);
-  const { error: keyError } = await supabaseAdmin
-    .from("game_session_question_keys")
-    .insert(keyRows);
-  if (keyError) throw new GameError("DB_ERROR", keyError.message);
-
-  return rows.length;
+  await batch.commit();
+  return qSnap.size;
 }
-
-// ---------------------------------------------------------------- host flows
 
 export async function createGameImpl() {
   const hostSecret = randomToken();
@@ -198,206 +150,184 @@ export async function createGameImpl() {
 
   for (let attempt = 0; attempt < 12; attempt++) {
     const pin = randomPin();
-    const { data, error } = await supabaseAdmin
-      .from("game_sessions")
-      .insert({ pin })
-      .select("id, pin")
-      .maybeSingle();
-    if (error) {
-      if (error.code === "23505") continue; // pin collision with an active session
-      throw new GameError("DB_ERROR", error.message);
+    
+    try {
+      const sessionId = await adminDb.runTransaction(async (t) => {
+        const existing = await t.get(adminDb.collection("sessions").where("pin", "==", pin).where("status", "==", "ACTIVE").limit(1));
+        if (!existing.empty) {
+          throw new Error("COLLISION"); // handled in catch
+        }
+        
+        const newRef = adminDb.collection("sessions").doc();
+        const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+        t.set(newRef, {
+          pin,
+          status: "ACTIVE",
+          phase: "LOBBY",
+          currentQuestionIndex: 0,
+          questionStartedAt: null,
+          questionEndsAt: null,
+          allowLateJoin: true,
+          totalQuestions: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          expiresAt,
+          hostSecretHash,
+        });
+        return newRef.id;
+      });
+      return { sessionId, pin, hostSecret };
+    } catch (e: any) {
+      if (e.message === "COLLISION") continue;
+      throw new GameError("DB_ERROR", e.message);
     }
-    if (!data) continue;
-    const { error: secretError } = await supabaseAdmin
-      .from("game_host_secrets")
-      .insert({ session_id: data.id, host_secret_hash: hostSecretHash });
-    if (secretError) throw new GameError("DB_ERROR", secretError.message);
-    return { sessionId: data.id, pin: data.pin, hostSecret };
   }
   throw new GameError("PIN_EXHAUSTED", "לא הצלחנו להקצות קוד משחק פנוי. נסו שוב.");
 }
 
-export type HostAction =
-  | GameAction
-  | "LOCK"
-  | "RESET"
-  | "DELETE"
-  | "ADD_BOTS"
-  | "CLEAR_BOTS"
-  | "TOGGLE_LATE_JOIN";
+export type HostAction = GameAction | "LOCK" | "RESET" | "DELETE" | "ADD_BOTS" | "CLEAR_BOTS" | "TOGGLE_LATE_JOIN";
+const GAME_ACTIONS: GameAction[] = ["START_GAME", "START_QUESTION", "LOCK", "SHOW_RESULTS", "SHOW_LEADERBOARD", "NEXT_QUESTION", "FINISH"];
 
-const GAME_ACTIONS: GameAction[] = [
-  "START_GAME",
-  "START_QUESTION",
-  "LOCK",
-  "SHOW_RESULTS",
-  "SHOW_LEADERBOARD",
-  "NEXT_QUESTION",
-  "FINISH",
-];
+const BOT_FIRST_NAMES = ["נועה","איתי","שירה","יונתן","מאיה","עומר","תמר","אורי","ליאור","רוני","דנה","אלון","הילה","גיא","יעל","אמיר"];
 
-
-const BOT_FIRST_NAMES = [
-  "נועה",
-  "איתי",
-  "שירה",
-  "יונתן",
-  "מאיה",
-  "עומר",
-  "תמר",
-  "אורי",
-  "ליאור",
-  "רוני",
-  "דנה",
-  "אלון",
-  "הילה",
-  "גיא",
-  "יעל",
-  "אמיר",
-];
-
-export async function hostCommandImpl(input: {
-  sessionId: string;
-  hostSecret: string;
-  action: HostAction;
-  count?: number | undefined;
-}) {
+export async function hostCommandImpl(input: { sessionId: string; hostSecret: string; action: HostAction; count?: number }) {
   const session = await assertHost(input.sessionId, input.hostSecret);
 
   if (GAME_ACTIONS.includes(input.action as GameAction)) {
     const action = input.action as GameAction;
-
-    // The snapshot is taken exactly once, when the game starts.
-    let totalQuestions = session.total_questions;
+    let totalQuestions = session.totalQuestions;
+    
     if (action === "START_GAME" && session.phase === "LOBBY") {
       totalQuestions = await buildSnapshot(session.id);
     }
 
-    const next = resolveAction(action, session.phase, session.current_question_index, totalQuestions);
+    const next = resolveAction(action, session.phase, session.currentQuestionIndex, totalQuestions);
     if (!next) throw new GameError("INVALID_TRANSITION", "הפעולה אינה אפשרית במצב הנוכחי.");
 
-    const patch: {
-      phase: string;
-      current_question_index: number;
-      updated_at: string;
-      total_questions?: number;
-      question_started_at?: string | null;
-      question_ends_at?: string | null;
-      revealed_answer_id?: string | null;
-    } = {
+    const patch: any = {
       phase: next.phase,
-      current_question_index: next.questionIndex,
-      updated_at: new Date().toISOString(),
+      currentQuestionIndex: next.questionIndex,
+      updatedAt: new Date().toISOString(),
     };
-    if (action === "START_GAME") patch.total_questions = totalQuestions;
+    
+    if (action === "START_GAME") patch.totalQuestions = totalQuestions;
     if (next.phase === "QUESTION_INTRO") {
-      patch.question_started_at = null;
-      patch.question_ends_at = null;
-      patch.revealed_answer_id = null;
+      patch.questionStartedAt = null;
+      patch.questionEndsAt = null;
+      patch.revealedAnswerId = null;
     }
     if (next.phase === "QUESTION_ACTIVE") {
       const question = await loadQuestion(session.id, next.questionIndex);
       const now = Date.now();
-      patch.question_started_at = new Date(now).toISOString();
-      patch.question_ends_at = new Date(now + question.duration_seconds * 1000).toISOString();
-      patch.revealed_answer_id = null;
+      patch.questionStartedAt = new Date(now).toISOString();
+      patch.questionEndsAt = new Date(now + question.durationSeconds * 1000).toISOString();
+      patch.revealedAnswerId = null;
     }
     if (next.phase === "SHOW_RESULTS") {
-      patch.revealed_answer_id = await loadKey(session.id, next.questionIndex);
+      patch.revealedAnswerId = await loadKey(session.id, next.questionIndex);
     }
 
-    // Guard against double progression from two simultaneous clicks.
-    const { data, error } = await supabaseAdmin
-      .from("game_sessions")
-      .update(patch)
-      .eq("id", session.id)
-      .eq("phase", session.phase)
-      .eq("current_question_index", session.current_question_index)
-      .select("id")
-      .maybeSingle();
-    if (error) throw new GameError("DB_ERROR", error.message);
-    if (!data) throw new GameError("CONFLICT", "המצב כבר עודכן.");
-    return { phase: next.phase, questionIndex: next.questionIndex };
+    // Atomic phase progression to prevent double clicks
+    try {
+      await adminDb.runTransaction(async (t) => {
+        const snap = await t.get(adminDb.collection("sessions").doc(session.id));
+        const data = snap.data()!;
+        if (data.phase !== session.phase || data.currentQuestionIndex !== session.currentQuestionIndex) {
+          throw new GameError("CONFLICT", "המצב כבר עודכן.");
+        }
+        t.update(snap.ref, patch);
+      });
+      return { phase: next.phase, questionIndex: next.questionIndex };
+    } catch (error: any) {
+      if (error instanceof GameError) throw error;
+      throw new GameError("DB_ERROR", error.message);
+    }
   }
 
   switch (input.action) {
     case "RESET": {
-      await supabaseAdmin.from("game_answers").delete().eq("session_id", session.id);
-      await supabaseAdmin.from("game_session_questions").delete().eq("session_id", session.id);
-      await supabaseAdmin.from("game_session_question_keys").delete().eq("session_id", session.id);
-      await supabaseAdmin
-        .from("game_players")
-        .update({ total_score: 0, correct_count: 0, cumulative_response_ms: 0 })
-        .eq("session_id", session.id);
-      const { error } = await supabaseAdmin
-        .from("game_sessions")
-        .update({
+      // In Firestore, deleting all answers and players requires fetching their refs first
+      const sRef = adminDb.collection("sessions").doc(session.id);
+      await adminDb.runTransaction(async (t) => {
+        t.update(sRef, {
           phase: "LOBBY",
-          current_question_index: 0,
-          question_started_at: null,
-          question_ends_at: null,
-          revealed_answer_id: null,
-          total_questions: 0,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", session.id);
-
-      if (error) throw new GameError("DB_ERROR", error.message);
+          currentQuestionIndex: 0,
+          questionStartedAt: null,
+          questionEndsAt: null,
+          revealedAnswerId: null,
+          totalQuestions: 0,
+          updatedAt: new Date().toISOString(),
+        });
+      });
+      
+      const batch = adminDb.batch();
+      // Reset players score
+      const players = await adminDb.collection(`sessions/${session.id}/players`).get();
+      players.docs.forEach(d => batch.update(d.ref, { totalScore: 0, correctCount: 0, cumulativeResponseMs: 0 }));
+      
+      // Delete answers
+      const answers = await adminDb.collection(`sessions/${session.id}/answers`).get();
+      answers.docs.forEach(d => batch.delete(d.ref));
+      
+      // Delete questions
+      const qs = await adminDb.collection(`sessions/${session.id}/questions`).get();
+      qs.docs.forEach(d => batch.delete(d.ref));
+      const ks = await adminDb.collection(`sessions/${session.id}/keys`).get();
+      ks.docs.forEach(d => batch.delete(d.ref));
+      
+      // Commit in chunks if over 500 (Firebase limit), though for this size batch should be fine
+      if (batch._writes.length > 0) {
+        await batch.commit();
+      }
       return { ok: true };
     }
     case "DELETE": {
-      await supabaseAdmin
-        .from("game_sessions")
-        .update({ status: "ENDED", updated_at: new Date().toISOString() })
-        .eq("id", session.id);
+      await adminDb.collection("sessions").doc(session.id).update({ status: "ENDED", updatedAt: new Date().toISOString() });
       return { ok: true };
     }
     case "TOGGLE_LATE_JOIN": {
-      await supabaseAdmin
-        .from("game_sessions")
-        .update({ allow_late_join: !session.allow_late_join })
-        .eq("id", session.id);
+      await adminDb.collection("sessions").doc(session.id).update({ allowLateJoin: !session.allowLateJoin });
       return { ok: true };
     }
     case "ADD_BOTS": {
       const count = Math.min(Math.max(input.count ?? 10, 1), 100);
-      const { data: existing } = await supabaseAdmin
-        .from("game_players")
-        .select("normalized_name")
-        .eq("session_id", session.id);
-      const taken = new Set((existing ?? []).map((p) => p.normalized_name));
-      const rows: {
-        session_id: string;
-        display_name: string;
-        normalized_name: string;
-        is_virtual: boolean;
-      }[] = [];
+      const playersSnap = await adminDb.collection(`sessions/${session.id}/players`).get();
+      const taken = new Set(playersSnap.docs.map(d => d.data().normalizedName));
+      
+      const batch = adminDb.batch();
       let n = 1;
-      while (rows.length < count && n < count * 40) {
+      let added = 0;
+      while (added < count && n < count * 40) {
         const base = BOT_FIRST_NAMES[n % BOT_FIRST_NAMES.length]!;
         const name = `${base} (סימולציה ${n})`;
         n++;
         const normalized = normalizeName(name);
         if (taken.has(normalized)) continue;
         taken.add(normalized);
-        rows.push({
-          session_id: session.id,
-          display_name: name,
-          normalized_name: normalized,
-          is_virtual: true,
+        
+        const ref = adminDb.collection(`sessions/${session.id}/players`).doc();
+        batch.set(ref, {
+          displayName: name,
+          normalizedName: normalized,
+          isVirtual: true,
+          totalScore: 0,
+          correctCount: 0,
+          cumulativeResponseMs: 0,
+          joinedAt: new Date().toISOString(),
+          lastSeenAt: new Date().toISOString(),
         });
+        added++;
       }
-      const { error } = await supabaseAdmin.from("game_players").insert(rows);
-      if (error) throw new GameError("DB_ERROR", error.message);
-      return { added: rows.length };
+      if (added > 0) await batch.commit();
+      return { added };
     }
     case "CLEAR_BOTS": {
-      const { error } = await supabaseAdmin
-        .from("game_players")
-        .delete()
-        .eq("session_id", session.id)
-        .eq("is_virtual", true);
-      if (error) throw new GameError("DB_ERROR", error.message);
+      const bots = await adminDb.collection(`sessions/${session.id}/players`).where("isVirtual", "==", true).get();
+      if (!bots.empty) {
+        const batch = adminDb.batch();
+        bots.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
       return { ok: true };
     }
     default:
@@ -405,206 +335,197 @@ export async function hostCommandImpl(input: {
   }
 }
 
-// -------------------------------------------------------------- player flows
-
-export async function joinGameImpl(input: {
-  pin: string;
-  displayName: string;
-}) {
+export async function joinGameImpl(input: { pin: string; displayName: string }) {
   if (!validatePin(input.pin)) throw new GameError("BAD_PIN", "קוד המשחק חייב להיות בן 4 ספרות.");
   const nameError = validateName(input.displayName);
   if (nameError) throw new GameError("BAD_NAME", nameError);
   const displayName = input.displayName.trim().replace(/\s+/g, " ");
+  const normalized = normalizeName(displayName);
 
-  const { data: session } = await supabaseAdmin
-    .from("game_sessions")
-    .select("id, pin, status, phase, expires_at, allow_late_join")
-    .eq("pin", input.pin)
-    .eq("status", "ACTIVE")
-    .maybeSingle();
+  const snap = await adminDb.collection("sessions").where("pin", "==", input.pin).where("status", "==", "ACTIVE").limit(1).get();
+  if (snap.empty) throw new GameError("NO_GAME", "לא מצאנו משחק עם הקוד הזה.");
+  const session = { id: snap.docs[0].id, ...snap.docs[0].data() } as SessionRecord;
 
-  if (!session) throw new GameError("NO_GAME", "לא מצאנו משחק עם הקוד הזה.");
-  if (new Date(session.expires_at).getTime() < Date.now())
-    throw new GameError("EXPIRED", "המשחק הסתיים.");
-  if (session.phase !== "LOBBY" && !session.allow_late_join)
-    throw new GameError("CLOSED", "המשחק כבר התחיל ולא ניתן להצטרף כעת.");
+  if (new Date(session.expiresAt).getTime() < Date.now()) throw new GameError("EXPIRED", "המשחק הסתיים.");
+  if (session.phase !== "LOBBY" && !session.allowLateJoin) throw new GameError("CLOSED", "המשחק כבר התחיל ולא ניתן להצטרף כעת.");
 
   const playerSecret = randomToken();
-  const { data: player, error } = await supabaseAdmin
-    .from("game_players")
-    .insert({
-      session_id: session.id,
-      display_name: displayName,
-      normalized_name: normalizeName(displayName),
-    })
-    .select("id, display_name")
-    .maybeSingle();
+  const playerSecretHash = await sha256(playerSecret);
 
-  if (error) {
-    if (error.code === "23505")
-      throw new GameError("NAME_TAKEN", "השם כבר נמצא במשחק. בחרו שם אחר.");
+  try {
+    const playerId = await adminDb.runTransaction(async (t) => {
+      const existing = await t.get(adminDb.collection(`sessions/${session.id}/players`).where("normalizedName", "==", normalized).limit(1));
+      if (!existing.empty) {
+        throw new Error("NAME_TAKEN");
+      }
+      const newRef = adminDb.collection(`sessions/${session.id}/players`).doc();
+      t.set(newRef, {
+        displayName,
+        normalizedName: normalized,
+        isVirtual: false,
+        playerSecretHash,
+        totalScore: 0,
+        correctCount: 0,
+        cumulativeResponseMs: 0,
+        joinedAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+      });
+      return newRef.id;
+    });
+    return { sessionId: session.id, pin: session.pin, playerId, playerSecret, displayName };
+  } catch (error: any) {
+    if (error.message === "NAME_TAKEN") throw new GameError("NAME_TAKEN", "השם כבר נמצא במשחק. בחרו שם אחר.");
     throw new GameError("DB_ERROR", error.message);
   }
-  if (!player) throw new GameError("DB_ERROR", "ההצטרפות נכשלה. נסו שוב.");
-
-  const { error: secretError } = await supabaseAdmin
-    .from("game_player_secrets")
-    .insert({ player_id: player.id, player_secret_hash: await sha256(playerSecret) });
-  if (secretError) throw new GameError("DB_ERROR", secretError.message);
-
-  return {
-    sessionId: session.id,
-    pin: session.pin,
-    playerId: player.id,
-    playerSecret,
-    displayName: player.display_name,
-  };
 }
 
-export async function submitAnswerImpl(input: {
-  sessionId: string;
-  playerId: string;
-  playerSecret: string;
-  questionId: number;
-  answerId: string;
-}) {
-  await assertPlayer(input.sessionId, input.playerId, input.playerSecret);
+export async function submitAnswerImpl(input: { sessionId: string; playerId: string; playerSecret: string; questionId: number; answerId: string }) {
+  const player = await assertPlayer(input.sessionId, input.playerId, input.playerSecret);
   const session = await loadSession(input.sessionId);
 
-  if (session.phase !== "QUESTION_ACTIVE")
-    throw new GameError("NOT_ACTIVE", "לא ניתן לענות כרגע.");
-  if (session.current_question_index !== input.questionId)
-    throw new GameError("WRONG_QUESTION", "השאלה כבר הוחלפה.");
-  if (!["A", "B", "C", "D"].includes(input.answerId))
-    throw new GameError("BAD_ANSWER", "תשובה לא חוקית.");
+  if (session.phase !== "QUESTION_ACTIVE") throw new GameError("NOT_ACTIVE", "לא ניתן לענות כרגע.");
+  if (session.currentQuestionIndex !== input.questionId) throw new GameError("WRONG_QUESTION", "השאלה כבר הוחלפה.");
+  if (!["A", "B", "C", "D"].includes(input.answerId)) throw new GameError("BAD_ANSWER", "תשובה לא חוקית.");
 
   const now = Date.now();
-  const endsAt = session.question_ends_at ? new Date(session.question_ends_at).getTime() : 0;
-  const startedAt = session.question_started_at
-    ? new Date(session.question_started_at).getTime()
-    : now;
+  const endsAt = session.questionEndsAt ? new Date(session.questionEndsAt).getTime() : 0;
+  const startedAt = session.questionStartedAt ? new Date(session.questionStartedAt).getTime() : now;
   if (now > endsAt + 750) throw new GameError("TOO_LATE", "הזמן נגמר.");
 
   const question = await loadQuestion(input.sessionId, input.questionId);
   const key = await loadKey(input.sessionId, input.questionId);
   const isCorrect = key === input.answerId;
   const remainingMs = Math.max(0, endsAt - now);
-  const score = computeScore(
-    isCorrect,
-    remainingMs,
-    question.duration_seconds,
-    question.scoring_mode as "QUIZ" | "POLL",
-  );
+  const score = computeScore(isCorrect, remainingMs, question.durationSeconds, question.scoringMode);
+  const responseMs = Math.max(0, now - startedAt);
 
-  const { data, error } = await supabaseAdmin.rpc("record_answer", {
-    p_session: input.sessionId,
-    p_question: input.questionId,
-    p_player: input.playerId,
-    p_answer: input.answerId,
-    p_response_ms: Math.max(0, now - startedAt),
-    p_score: score,
-    p_correct: isCorrect,
-  });
-  if (error) throw new GameError("DB_ERROR", error.message);
-  return { recorded: data === true, duplicate: data === false };
+  const answerRefId = `${input.questionId}_${input.playerId}`;
+  const answerRef = adminDb.collection(`sessions/${session.id}/answers`).doc(answerRefId);
+  const playerRef = adminDb.collection(`sessions/${session.id}/players`).doc(input.playerId);
+
+  try {
+    const recorded = await adminDb.runTransaction(async (t) => {
+      const existing = await t.get(answerRef);
+      if (existing.exists) {
+        return false; // already answered
+      }
+      
+      const pSnap = await t.get(playerRef);
+      const pData = pSnap.data()!;
+      
+      t.set(answerRef, {
+        playerId: input.playerId,
+        questionId: input.questionId,
+        answerId: input.answerId,
+        isCorrect,
+        responseMs,
+        awardedScore: score,
+        submittedAt: new Date().toISOString(),
+      });
+      
+      t.update(playerRef, {
+        totalScore: pData.totalScore + score,
+        correctCount: pData.correctCount + (isCorrect ? 1 : 0),
+        cumulativeResponseMs: pData.cumulativeResponseMs + responseMs,
+        lastSeenAt: new Date().toISOString(),
+      });
+      return true;
+    });
+    return { recorded, duplicate: !recorded };
+  } catch (error: any) {
+    throw new GameError("DB_ERROR", error.message);
+  }
 }
 
-export async function playerStateImpl(input: {
-  playerId: string;
-  playerSecret: string;
-}) {
-  const { data: player } = await supabaseAdmin
-    .from("game_players")
-    .select("id, session_id, display_name")
-    .eq("id", input.playerId)
-    .maybeSingle();
-  if (!player) throw new GameError("NOT_FOUND", "השחקן לא נמצא.");
-  await assertPlayer(player.session_id, input.playerId, input.playerSecret);
-  await supabaseAdmin
-    .from("game_players")
-    .update({ last_seen_at: new Date().toISOString() })
-    .eq("id", player.id);
-  const session = await loadSession(player.session_id);
-  const { data: answered } = await supabaseAdmin
-    .from("game_answers")
-    .select("question_id, answer_id")
-    .eq("player_id", player.id)
-    .eq("question_id", session.current_question_index)
-    .maybeSingle();
+export async function playerStateImpl(input: { playerId: string; playerSecret: string }) {
+  // player secret is now validated in assertPlayer, but we need session id first.
+  // Wait, assertPlayer requires sessionId. Where do we get it?
+  // We can query all players across sessions? Firestore Collection Group query!
+  const playersSnap = await adminDb.collectionGroup("players").where("playerSecretHash", "==", await sha256(input.playerSecret)).get();
+  const playerDoc = playersSnap.docs.find(d => d.id === input.playerId);
+  if (!playerDoc) throw new GameError("NOT_FOUND", "השחקן לא נמצא או זיהוי שגוי.");
+  
+  const pData = playerDoc.data();
+  // Document path is sessions/{sessionId}/players/{playerId}
+  const sessionId = playerDoc.ref.parent.parent!.id;
+  
+  await playerDoc.ref.update({ lastSeenAt: new Date().toISOString() });
+  
+  const session = await loadSession(sessionId);
+  const answerId = `${session.currentQuestionIndex}_${input.playerId}`;
+  const answerSnap = await adminDb.collection(`sessions/${sessionId}/answers`).doc(answerId).get();
+  
   return {
     sessionId: session.id,
     pin: session.pin,
-    displayName: player.display_name,
-    answeredCurrent: answered?.answer_id ?? null,
+    displayName: pData.displayName,
+    answeredCurrent: answerSnap.exists ? answerSnap.data()?.answerId : null,
   };
 }
 
-// ------------------------------------------------------- presenter live tick
-
-/** Runs due virtual-player answers and returns live progress for the presenter. */
 export async function questionTickImpl(input: { sessionId: string; hostSecret: string }) {
   const session = await assertHost(input.sessionId, input.hostSecret);
-  const questionId = session.current_question_index;
-  if (questionId < 1 || questionId > session.total_questions) return { answered: 0, total: 0 };
+  const questionId = session.currentQuestionIndex;
+  if (questionId < 1 || questionId > session.totalQuestions) return { answered: 0, total: 0 };
 
-  const { data: players } = await supabaseAdmin
-    .from("game_players")
-    .select("id, is_virtual")
-    .eq("session_id", session.id);
-  const all = players ?? [];
+  const playersSnap = await adminDb.collection(`sessions/${session.id}/players`).get();
+  const all = playersSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
 
-  if (session.phase === "QUESTION_ACTIVE" && session.question_started_at) {
+  if (session.phase === "QUESTION_ACTIVE" && session.questionStartedAt) {
     const question = await loadQuestion(session.id, questionId);
     const key = await loadKey(session.id, questionId);
-    const durationMs = question.duration_seconds * 1000;
-    const startedAt = new Date(session.question_started_at).getTime();
-    const endsAt = new Date(session.question_ends_at ?? "").getTime() || startedAt + durationMs;
+    const durationMs = question.durationSeconds * 1000;
+    const startedAt = new Date(session.questionStartedAt).getTime();
+    const endsAt = session.questionEndsAt ? new Date(session.questionEndsAt).getTime() : startedAt + durationMs;
     const elapsed = Date.now() - startedAt;
 
-    const { data: existing } = await supabaseAdmin
-      .from("game_answers")
-      .select("player_id")
-      .eq("session_id", session.id)
-      .eq("question_id", questionId);
-    const answered = new Set((existing ?? []).map((a) => a.player_id));
+    const answersSnap = await adminDb.collection(`sessions/${session.id}/answers`).where("questionId", "==", questionId).get();
+    const answered = new Set(answersSnap.docs.map(a => a.data().playerId));
 
-    const bots = all.filter((p) => p.is_virtual && !answered.has(p.id));
+    const bots = all.filter((p) => p.isVirtual && !answered.has(p.id));
     for (const bot of bots) {
       const rWill = seeded(`${bot.id}:${questionId}:will`);
-      if (rWill > 0.94) continue; // ~6% never answer
-      const plannedMs = Math.floor(
-        durationMs * (0.2 + seeded(`${bot.id}:${questionId}:time`) * 0.7),
-      );
+      if (rWill > 0.94) continue; 
+      const plannedMs = Math.floor(durationMs * (0.2 + seeded(`${bot.id}:${questionId}:time`) * 0.7));
       if (plannedMs > elapsed) continue;
       const correct = seeded(`${bot.id}:${questionId}:acc`) < 0.7;
       const options: AnswerId[] = ["A", "B", "C", "D"];
       const wrongOptions = options.filter((o) => o !== key);
-      const chosen = correct
-        ? key
-        : wrongOptions[Math.floor(seeded(`${bot.id}:${questionId}:pick`) * wrongOptions.length)]!;
-      const remaining = Math.max(0, endsAt - (startedAt + plannedMs));
-      await supabaseAdmin.rpc("record_answer", {
-        p_session: session.id,
-        p_question: questionId,
-        p_player: bot.id,
-        p_answer: chosen,
-        p_response_ms: plannedMs,
-        p_score: computeScore(
-          chosen === key,
-          remaining,
-          question.duration_seconds,
-          question.scoring_mode as "QUIZ" | "POLL",
-        ),
-        p_correct: chosen === key,
-      });
+      const chosen = correct ? key : wrongOptions[Math.floor(seeded(`${bot.id}:${questionId}:pick`) * wrongOptions.length)]!;
+      
+      const answerRefId = `${questionId}_${bot.id}`;
+      const isCorrect = chosen === key;
+      const remainingMs = Math.max(0, endsAt - (startedAt + plannedMs));
+      const score = computeScore(isCorrect, remainingMs, question.durationSeconds, question.scoringMode);
+      
+      try {
+        await adminDb.runTransaction(async (t) => {
+          const ansRef = adminDb.collection(`sessions/${session.id}/answers`).doc(answerRefId);
+          const pRef = adminDb.collection(`sessions/${session.id}/players`).doc(bot.id);
+          const e = await t.get(ansRef);
+          if (e.exists) return;
+          const pData = (await t.get(pRef)).data()!;
+          t.set(ansRef, {
+            playerId: bot.id,
+            questionId,
+            answerId: chosen,
+            isCorrect,
+            responseMs: plannedMs,
+            awardedScore: score,
+            submittedAt: new Date().toISOString(),
+          });
+          t.update(pRef, {
+            totalScore: pData.totalScore + score,
+            correctCount: pData.correctCount + (isCorrect ? 1 : 0),
+            cumulativeResponseMs: pData.cumulativeResponseMs + plannedMs,
+          });
+        });
+      } catch (err) {
+        // ignore bot race conditions
+      }
     }
   }
 
-  const { count } = await supabaseAdmin
-    .from("game_answers")
-    .select("id", { count: "exact", head: true })
-    .eq("session_id", session.id)
-    .eq("question_id", questionId);
-
-  return { answered: count ?? 0, total: all.length };
+  const ansCountSnap = await adminDb.collection(`sessions/${session.id}/answers`).where("questionId", "==", questionId).count().get();
+  return { answered: ansCountSnap.data().count, total: all.length };
 }
