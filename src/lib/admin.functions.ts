@@ -206,6 +206,21 @@ export const adminSetDefaultDuration = createServerFn({ method: "POST" })
     }
   });
 
+export const adminSetShowInsights = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ passcode, show: z.boolean() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { assertAdmin, setShowInsightsImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      assertAdmin(data.passcode);
+      return await setShowInsightsImpl(data.show);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "שמירת ההגדרה נכשלה.");
+    }
+  });
+
 export const adminUploadLogo = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z

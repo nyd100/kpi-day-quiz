@@ -185,27 +185,46 @@ export function useLivePlayers(sessionId: string | null) {
 /** Answers for a question — readable only once the question is locked/revealed. */
 export function useQuestionAnswers(sessionId: string | null, questionId: number, enabled: boolean) {
   const [answers, setAnswers] = useState<AnswerRow[]>([]);
+  
+  const load = useCallback(async (active: boolean) => {
+    if (!sessionId || !enabled || questionId < 1) return;
+    const { data } = await supabase
+      .from("game_answers")
+      .select("player_id, question_id, answer_id, is_correct, response_ms, awarded_score")
+      .eq("session_id", sessionId)
+      .eq("question_id", questionId);
+    if (active && data) setAnswers(data as unknown as AnswerRow[]);
+  }, [sessionId, questionId, enabled]);
+
   useEffect(() => {
     if (!sessionId || !enabled || questionId < 1) {
       setAnswers([]);
       return;
     }
     let active = true;
-    const load = async () => {
-      const { data } = await supabase
-        .from("game_answers")
-        .select("player_id, question_id, answer_id, is_correct, response_ms, awarded_score")
-        .eq("session_id", sessionId)
-        .eq("question_id", questionId);
-      if (active && data) setAnswers(data as unknown as AnswerRow[]);
-    };
-    void load();
-    const id = setInterval(() => void load(), 3000);
+    void load(active);
+
+    const channel = supabase
+      .channel(`answers-${sessionId}-${questionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "game_answers",
+          filter: `session_id=eq.${sessionId}`,
+        },
+        () => void load(active),
+      )
+      .subscribe();
+
+    const id = setInterval(() => void load(active), 3000);
     return () => {
       active = false;
       clearInterval(id);
+      void supabase.removeChannel(channel);
     };
-  }, [sessionId, questionId, enabled]);
+  }, [sessionId, questionId, enabled, load]);
   return answers;
 }
 

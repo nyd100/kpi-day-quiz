@@ -295,6 +295,7 @@ export async function removeQuestionImageImpl(questionId: number) {
 
 export const LOGO_KEY = "org_logo_url";
 export const DURATION_KEY = "default_duration_seconds";
+export const SHOW_INSIGHTS_KEY = "show_insights";
 export const FALLBACK_DURATION = 30;
 
 export async function getSettingsImpl() {
@@ -306,6 +307,7 @@ export async function getSettingsImpl() {
     logoUrl: map[LOGO_KEY] ?? null,
     defaultDurationSeconds:
       Number.isFinite(parsed) && parsed > 0 ? parsed : FALLBACK_DURATION,
+    showInsights: map[SHOW_INSIGHTS_KEY] !== "false",
   };
 }
 
@@ -322,6 +324,17 @@ export async function setDefaultDurationImpl(seconds: number) {
     );
   if (error) throw new GameError("DB_ERROR", error.message);
   return { defaultDurationSeconds: seconds };
+}
+
+export async function setShowInsightsImpl(show: boolean) {
+  const { error } = await supabaseAdmin
+    .from("app_settings")
+    .upsert(
+      { key: SHOW_INSIGHTS_KEY, value: show ? "true" : "false", updated_at: new Date().toISOString() },
+      { onConflict: "key" },
+    );
+  if (error) throw new GameError("DB_ERROR", error.message);
+  return { showInsights: show };
 }
 
 export async function uploadLogoImpl(input: {

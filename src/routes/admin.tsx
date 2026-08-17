@@ -17,6 +17,7 @@ import {
   adminRestoreDefaults,
   adminSaveQuestion,
   adminSetDefaultDuration,
+  adminSetShowInsights,
   adminSetQuestionEnabled,
   adminUploadLogo,
   adminUploadQuestionImage,
@@ -79,6 +80,7 @@ function AdminPage() {
   const [game, setGame] = useState<HostIdentity | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [defaultDuration, setDefaultDuration] = useState(30);
+  const [showInsights, setShowInsights] = useState(true);
 
   // ------------------------------------------------ live control of the game
   const now = useServerClock();
@@ -131,6 +133,7 @@ function AdminPage() {
     setQuestions(list);
     setLogoUrl(settings.logoUrl);
     setDefaultDuration(settings.defaultDurationSeconds);
+    setShowInsights(settings.showInsights);
   };
 
   const changeDefaultDuration = async (seconds: number) => {
@@ -141,6 +144,17 @@ function AdminPage() {
       await adminSetDefaultDuration({ data: { passcode, seconds: next } });
     } catch (error) {
       setDefaultDuration(previous);
+      toast.error(error instanceof Error ? error.message : "שמירת ההגדרה נכשלה.");
+    }
+  };
+
+  const toggleShowInsights = async (show: boolean) => {
+    const previous = showInsights;
+    setShowInsights(show);
+    try {
+      await adminSetShowInsights({ data: { passcode, show } });
+    } catch (error) {
+      setShowInsights(previous);
       toast.error(error instanceof Error ? error.message : "שמירת ההגדרה נכשלה.");
     }
   };
@@ -582,6 +596,23 @@ function AdminPage() {
             +
           </button>
         </div>
+      </section>
+
+      <section className="surface-card mb-6 space-y-3 p-5">
+        <h2 className="text-lg font-bold">הצגת תובנות במסך המנחה</h2>
+        <p className="text-sm text-muted-foreground">
+          מאפשר הצגת תובנה מחושבת על אופן הצבעת המשתתפים.
+        </p>
+        <label className="flex items-center gap-2 font-semibold">
+          <input
+            type="checkbox"
+            checked={showInsights}
+            onChange={(e) => void toggleShowInsights(e.target.checked)}
+            disabled={busy}
+            className="h-5 w-5 rounded border-input text-primary focus:ring-primary"
+          />
+          הצג תובנות מההצבעה (Insights)
+        </label>
       </section>
 
       <section className="surface-card mb-6 space-y-3 p-5">

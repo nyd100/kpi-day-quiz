@@ -7,7 +7,9 @@ import { AnswerTile } from "@/components/quiz/answer-tile";
 import { ConnectionBadge } from "@/components/quiz/connection-badge";
 import { Countdown } from "@/components/quiz/countdown";
 import { LeaderboardList, Podium } from "@/components/quiz/leaderboard";
+import { ParticipationStrip } from "@/components/quiz/participation-strip";
 import { ResultsBars } from "@/components/quiz/results-bars";
+import { InsightStrip } from "@/components/quiz/insight-strip";
 import { hostCommand, questionTick, verifyHost } from "@/lib/game.functions";
 import { disableSound, enableSound, isSoundEnabled, playCue } from "@/lib/sound";
 import {
@@ -57,6 +59,8 @@ function PresentPage() {
   const questions = useSessionQuestions(host?.sessionId ?? null);
   const players = useLivePlayers(host?.sessionId ?? null);
   const logoUrl = useAppSetting("org_logo_url");
+  const showInsightsSetting = useAppSetting("show_insights");
+  const showInsights = showInsightsSetting !== "false";
 
   useEffect(() => {
     const stored = hostStorage.get();
@@ -83,7 +87,7 @@ function PresentPage() {
   const answers = useQuestionAnswers(
     host?.sessionId ?? null,
     questionIndex,
-    session?.phase === "SHOW_RESULTS" || session?.phase === "QUESTION_LOCKED",
+    session?.phase === "QUESTION_ACTIVE" || session?.phase === "SHOW_RESULTS" || session?.phase === "QUESTION_LOCKED",
   );
 
   const { seconds, ratio } = useCountdown(
@@ -98,12 +102,37 @@ function PresentPage() {
     const phase = session?.phase ?? null;
     if (!phase || phase === lastPhase.current) return;
     lastPhase.current = phase;
+    
+    // Check if user prefers reduced motion
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     if (phase === "QUESTION_INTRO") playCue("gameStart");
     if (phase === "QUESTION_ACTIVE") playCue("questionStart");
     if (phase === "QUESTION_LOCKED") playCue("timeUp");
     if (phase === "SHOW_RESULTS") playCue("reveal");
-    if (phase === "LEADERBOARD") playCue("leaderboard");
-    if (phase === "GAME_COMPLETE") playCue("finale");
+    if (phase === "LEADERBOARD") {
+      playCue("leaderboard");
+      if (!prefersReducedMotion) {
+        import("canvas-confetti").then(({ default: confetti }) => {
+          confetti({ particleCount: 120, spread: 100, origin: { y: 0.6 } });
+        });
+      }
+    }
+    if (phase === "GAME_COMPLETE") {
+      playCue("finale");
+      if (!prefersReducedMotion) {
+        import("canvas-confetti").then(({ default: confetti }) => {
+          const duration = 3000;
+          const end = Date.now() + duration;
+          const frame = () => {
+            confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ["#26ccff", "#a25afd", "#ff5e7e", "#88ff5a", "#fcff42", "#ffa62d", "#ff36ff"] });
+            confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ["#26ccff", "#a25afd", "#ff5e7e", "#88ff5a", "#fcff42", "#ffa62d", "#ff36ff"] });
+            if (Date.now() < end) requestAnimationFrame(frame);
+          };
+          frame();
+        });
+      }
+    }
   }, [session?.phase]);
 
   const lastTick = useRef(0);
@@ -208,7 +237,7 @@ function PresentPage() {
     : null;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-4 py-5">
+    <main className="mx-auto flex min-h-screen w-[96vw] max-w-[1920px] flex-col gap-6 py-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <div className="rounded-xl bg-white p-2">
@@ -246,15 +275,15 @@ function PresentPage() {
       )}
 
       {session && session.phase !== "LOBBY" && question && (
-        <section className="surface-card flex flex-1 flex-col gap-4 p-6">
-          <div className="flex items-start justify-between gap-4">
+        <section className="surface-card flex flex-1 flex-col gap-6 p-8">
+          <div className="flex items-start justify-between gap-6">
             <div>
-              <p className="text-sm font-bold text-primary">
+              <p className="text-lg font-bold text-primary">
                 שאלה {question.id} מתוך {totalQuestions} · {CATEGORY_LABEL[question.category]}
               </p>
-              <h2 className="mt-1 text-3xl font-black leading-snug">{question.title}</h2>
+              <h2 className="mt-2 text-4xl font-black leading-snug">{question.title}</h2>
               {question.subtitle && (
-                <p className="mt-1 text-muted-foreground">{question.subtitle}</p>
+                <p className="mt-2 text-xl text-muted-foreground">{question.subtitle}</p>
               )}
             </div>
             {session.phase === "QUESTION_ACTIVE" && <Countdown seconds={seconds} ratio={ratio} />}
@@ -275,22 +304,38 @@ function PresentPage() {
           {(session.phase === "QUESTION_INTRO" ||
             session.phase === "QUESTION_ACTIVE" ||
             session.phase === "QUESTION_LOCKED") && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid flex-1 gap-4 sm:grid-cols-2">
               {question.answers.map((a) => (
                 <AnswerTile key={a.id} id={a.id} text={a.text} size="stage" />
               ))}
             </div>
           )}
 
-          {session.phase === "SHOW_RESULTS" && stats && (
-            <ResultsBars
-              stats={stats}
-              answers={question.answers}
-              correctAnswerId={(session.revealed_answer_id as AnswerId | null) ?? null}
-            />
+          {session.phase === "QUESTION_ACTIVE" && (
+            <div className="mt-auto pt-4">
+              <ParticipationStrip answers={answers} players={players} />
+            </div>
           )}
 
-          {session.phase === "LEADERBOARD" && <LeaderboardList players={players} limit={5} />}
+          {session.phase === "SHOW_RESULTS" && stats && (
+            <div className="flex flex-col gap-4">
+              <ResultsBars
+                stats={stats}
+                answers={question.answers}
+                correctAnswerId={(session.revealed_answer_id as AnswerId | null) ?? null}
+              />
+              {showInsights && (
+                <InsightStrip
+                  stats={stats}
+                  answers={question.answers}
+                  category={question.category}
+                  correctAnswerId={(session.revealed_answer_id as AnswerId | null) ?? null}
+                />
+              )}
+            </div>
+          )}
+
+          {session.phase === "LEADERBOARD" && <LeaderboardList players={players} limit={10} />}
 
           {session.phase === "GAME_COMPLETE" && (
             <div className="space-y-6">

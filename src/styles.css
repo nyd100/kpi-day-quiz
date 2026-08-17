@@ -14,12 +14,24 @@
   --font-sans: "Assistant", system-ui, sans-serif;
   --font-display: "Heebo", "Assistant", system-ui, sans-serif;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
+  /* Fluid typography */
+  --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --text-sm: clamp(0.875rem, 0.82rem + 0.28vw, 1rem);
+  --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --text-lg: clamp(1.125rem, 1.05rem + 0.38vw, 1.25rem);
+  --text-xl: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --text-2xl: clamp(1.5rem, 1.35rem + 0.75vw, 2rem);
+  --text-3xl: clamp(1.875rem, 1.65rem + 1.13vw, 2.5rem);
+  --text-4xl: clamp(2.25rem, 1.9rem + 1.75vw, 3.5rem);
+  --text-5xl: clamp(3rem, 2.5rem + 2.5vw, 4.5rem);
+
+  /* Refined border radii */
+  --radius-sm: clamp(0.25rem, 0.2rem + 0.25vw, 0.375rem);
+  --radius-md: clamp(0.375rem, 0.3rem + 0.38vw, 0.5rem);
+  --radius-lg: clamp(0.5rem, 0.4rem + 0.5vw, 0.75rem);
+  --radius-xl: clamp(0.75rem, 0.6rem + 0.75vw, 1rem);
+  --radius-2xl: clamp(1rem, 0.8rem + 1vw, 1.5rem);
+  --radius-3xl: clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -61,11 +73,12 @@
 :root {
   --radius: 1rem;
 
-  --background: oklch(0.17 0.03 254);
+  /* Polished Dark Aesthetic Colors */
+  --background: oklch(0.16 0.02 254);
   --foreground: oklch(0.97 0.005 250);
-  --surface: oklch(0.22 0.032 254);
-  --surface-2: oklch(0.26 0.035 254);
-  --card: oklch(0.22 0.032 254);
+  --surface: oklch(0.20 0.025 254);
+  --surface-2: oklch(0.24 0.03 254);
+  --card: oklch(0.20 0.025 254);
   --card-foreground: oklch(0.97 0.005 250);
   --popover: oklch(0.22 0.032 254);
   --popover-foreground: oklch(0.97 0.005 250);
@@ -134,11 +147,17 @@
 }
 
 @utility surface-card {
-  background-color: color-mix(in oklab, var(--color-surface) 88%, transparent);
+  background-color: color-mix(in oklab, var(--color-surface) 90%, transparent);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
   box-shadow: var(--shadow-elevated);
+  padding: clamp(1rem, 0.5rem + 2.5vw, 2.5rem);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+
+  &:hover {
+    box-shadow: var(--shadow-glow);
+  }
 }
 
 @utility text-gradient-accent {
