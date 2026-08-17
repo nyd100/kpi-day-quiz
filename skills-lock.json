@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "code-review-excellence": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-review-excellence/SKILL.md",
+      "computedHash": "7c57a6f171ca176966f9be968dfedbcb06e1b2813bd951e3499a2d89e344c540"
+    }
+  }
+}

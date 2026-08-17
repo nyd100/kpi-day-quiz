@@ -23,6 +23,9 @@ import {
   adminSetQuestionEnabled,
   adminUploadLogo,
   adminUploadQuestionImage,
+  adminAddAuthorizedAdmin,
+  adminRemoveAuthorizedAdmin,
+  adminListAuthorizedAdmins,
 } from "@/lib/admin.functions";
 import {
   hostStorage,
@@ -69,15 +72,15 @@ export const Route = createFileRoute("/admin")({
 
 type AdminQuestion = Awaited<ReturnType<typeof adminListQuestions>>[number];
 
-const PASS_KEY = "impact2026.admin";
-
 function AdminPage() {
   const hydrated = useHydrated();
-  const [token, settoken] = useState("");
+  const [token, setToken] = useState("");
   const [authed, setAuthed] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [adminsList, setAdminsList] = useState<string[]>([]);
   const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [authLoading, setAuthLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
@@ -100,12 +103,101 @@ function AdminPage() {
     liveQuestion?.durationSeconds ?? 20,
   );
 
+  // Listen for Firebase Auth state changes
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? sessionStorage.getItem(PASS_KEY) : null;
-    if (stored) void unlock(stored, true);
     setGame(hostStorage.get());
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const idToken = await user.getIdToken();
+          setToken(idToken);
+          // Verify admin access on the server
+          const result = await adminLogin({ data: { token: idToken } });
+          if (result.ok) {
+            setAuthed(true);
+            setUserEmail(user.email || "");
+            // Load data
+            await load(idToken);
+            // Check if super admin and load admin list
+            try {
+              const admins = await adminListAuthorizedAdmins({ data: { token: idToken } });
+              setAdminsList(admins);
+              setIsSuperAdmin(admins.length > 0); // only super admins get the list
+            } catch {
+              setIsSuperAdmin(false);
+            }
+          } else {
+            toast.error(result.message || "אין לך הרשאות ניהול.");
+            await signOut(auth);
+          }
+        } catch (error) {
+          console.error("Auth verification failed:", error);
+          await signOut(auth);
+        }
+      } else {
+        setToken("");
+        setAuthed(false);
+        setUserEmail("");
+        setIsSuperAdmin(false);
+        setAdminsList([]);
+      }
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleGoogleSignIn = async () => {
+    setBusy(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      // onAuthStateChanged will handle the rest
+    } catch (error: any) {
+      if (error.code !== "auth/popup-closed-by-user") {
+        toast.error("ההתחברות נכשלה. נסו שוב.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut(auth);
+    setAuthed(false);
+    setToken("");
+    setUserEmail("");
+    setQuestions([]);
+    toast.success("התנתקת בהצלחה.");
+  };
+
+  const handleAddAdmin = async () => {
+    if (!newAdminEmail.trim()) return;
+    setBusy(true);
+    try {
+      await adminAddAuthorizedAdmin({ data: { token, email: newAdminEmail.trim() } });
+      setAdminsList((prev) => [...prev, newAdminEmail.trim().toLowerCase()]);
+      setNewAdminEmail("");
+      toast.success("המנהל נוסף בהצלחה.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "הוספת המנהל נכשלה.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemoveAdmin = async (email: string) => {
+    if (!confirm(`להסיר את ${email} מרשימת המנהלים?`)) return;
+    setBusy(true);
+    try {
+      await adminRemoveAuthorizedAdmin({ data: { token, email } });
+      setAdminsList((prev) => prev.filter((e) => e !== email));
+      toast.success("המנהל הוסר.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "הסרת המנהל נכשלה.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const run = useCallback(
     async (action: HostControlAction, count?: number) => {
@@ -378,7 +470,7 @@ function AdminPage() {
     }
   };
 
-  if (!hydrated) return null;
+  if (!hydrated || authLoading) return null;
 
   if (!authed) {
     return (
@@ -386,31 +478,18 @@ function AdminPage() {
         <h1 className="text-3xl font-black">
           <span className="text-gradient-accent">קונסולת ניהול</span>
         </h1>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void unlock(input);
-          }}
-          className="surface-card w-full max-w-sm space-y-4 p-6"
-        >
-          <label htmlFor="pass" className="block text-sm font-semibold">
-            קוד ניהול
-          </label>
-          <input
-            id="pass"
-            type="password"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="h-14 w-full rounded-2xl border border-input bg-background/60 px-4 text-lg font-semibold"
-          />
+        <div className="surface-card w-full max-w-sm space-y-4 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            התחברו עם חשבון Google מורשה כדי לגשת לממשק הניהול.
+          </p>
           <button
-            type="submit"
+            onClick={() => void handleGoogleSignIn()}
             disabled={busy}
             className="h-14 w-full rounded-2xl bg-gradient-accent text-lg font-bold text-primary-foreground disabled:opacity-60"
           >
-            כניסה
+            {busy ? "מתחבר..." : "התחברות עם Google"}
           </button>
-        </form>
+        </div>
       </main>
     );
   }
@@ -428,10 +507,21 @@ function AdminPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {questions.length} שאלות · {remaining} עדיין בטיוטה
           </p>
+          <p className="text-xs text-muted-foreground">
+            מחובר כ-{userEmail}
+          </p>
         </div>
-        <Link to="/present" className="rounded-xl border border-input px-4 py-2 text-sm font-semibold">
-          מסך המשחק החי
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/present" className="rounded-xl border border-input px-4 py-2 text-sm font-semibold">
+            מסך המשחק החי
+          </Link>
+          <button
+            onClick={() => void handleSignOut()}
+            className="rounded-xl border border-input px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+          >
+            התנתקות
+          </button>
+        </div>
       </header>
 
       <section className="surface-card mb-6 space-y-3 p-5">
@@ -649,6 +739,46 @@ function AdminPage() {
           שחזור שאלות ברירת המחדל
         </button>
       </div>
+
+      {isSuperAdmin && (
+        <section className="surface-card mb-6 space-y-3 p-5">
+          <h2 className="text-lg font-bold">ניהול הרשאות</h2>
+          <p className="text-sm text-muted-foreground">
+            הוספה והסרה של חשבונות Google מורשים לניהול.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="email"
+              value={newAdminEmail}
+              onChange={(e) => setNewAdminEmail(e.target.value)}
+              placeholder="email@example.com"
+              dir="ltr"
+              className="h-11 flex-1 rounded-xl border border-input bg-background/60 px-3 text-sm"
+            />
+            <button
+              onClick={() => void handleAddAdmin()}
+              disabled={busy || !newAdminEmail.trim()}
+              className="h-11 rounded-xl bg-primary px-5 font-bold text-primary-foreground disabled:opacity-60"
+            >
+              הוספת מנהל
+            </button>
+          </div>
+          <ul className="space-y-1 text-sm">
+            {adminsList.map((email) => (
+              <li key={email} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                <span dir="ltr">{email}</span>
+                <button
+                  onClick={() => void handleRemoveAdmin(email)}
+                  disabled={busy}
+                  className="text-xs font-semibold text-destructive hover:underline disabled:opacity-40"
+                >
+                  הסרה
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="space-y-3">
         {questions.map((q, index) => (

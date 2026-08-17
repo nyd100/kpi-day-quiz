@@ -276,7 +276,7 @@ export async function hostCommandImpl(input: { sessionId: string; hostSecret: st
       ks.docs.forEach(d => batch.delete(d.ref));
       
       // Commit in chunks if over 500 (Firebase limit), though for this size batch should be fine
-      if (batch._writes.length > 0) {
+      if (true) {
         await batch.commit();
       }
       return { ok: true };

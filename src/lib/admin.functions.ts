@@ -10,7 +10,7 @@ export const adminLogin = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return { ok: true as const };
     } catch (error) {
       if (error instanceof GameError) return { ok: false as const, message: error.message };
@@ -24,7 +24,7 @@ export const adminListQuestions = createServerFn({ method: "POST" })
     const { assertAdmin, listAdminQuestions } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await listAdminQuestions();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "טעינת השאלות נכשלה.");
@@ -60,7 +60,7 @@ export const adminSaveQuestion = createServerFn({ method: "POST" })
     const { assertAdmin, saveQuestionImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await saveQuestionImpl(data.question);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שמירת השאלה נכשלה.");
@@ -83,7 +83,7 @@ export const adminUploadQuestionImage = createServerFn({ method: "POST" })
     const { assertAdmin, uploadQuestionImageImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await uploadQuestionImageImpl(data);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "העלאת התמונה נכשלה.");
@@ -98,7 +98,7 @@ export const adminRemoveQuestionImage = createServerFn({ method: "POST" })
     const { assertAdmin, removeQuestionImageImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await removeQuestionImageImpl(data.questionId);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "הסרת התמונה נכשלה.");
@@ -111,7 +111,7 @@ export const adminCreateQuestion = createServerFn({ method: "POST" })
     const { assertAdmin, createQuestionImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await createQuestionImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "הוספת השאלה נכשלה.");
@@ -126,7 +126,7 @@ export const adminDeleteQuestion = createServerFn({ method: "POST" })
     const { assertAdmin, deleteQuestionImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await deleteQuestionImpl(data.questionId);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "מחיקת השאלה נכשלה.");
@@ -143,7 +143,7 @@ export const adminSetQuestionEnabled = createServerFn({ method: "POST" })
     const { assertAdmin, setQuestionEnabledImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await setQuestionEnabledImpl(data.questionId, data.isEnabled);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "העדכון נכשל.");
@@ -158,7 +158,7 @@ export const adminReorderQuestions = createServerFn({ method: "POST" })
     const { assertAdmin, reorderQuestionsImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await reorderQuestionsImpl(data.orderedIds);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שינוי הסדר נכשל.");
@@ -171,7 +171,7 @@ export const adminRestoreDefaults = createServerFn({ method: "POST" })
     const { assertAdmin, restoreDefaultQuestionsImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await restoreDefaultQuestionsImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שחזור השאלות נכשל.");
@@ -184,7 +184,7 @@ export const adminGetSettings = createServerFn({ method: "POST" })
     const { assertAdmin, getSettingsImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await getSettingsImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "טעינת ההגדרות נכשלה.");
@@ -199,7 +199,7 @@ export const adminSetDefaultDuration = createServerFn({ method: "POST" })
     const { assertAdmin, setDefaultDurationImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await setDefaultDurationImpl(data.seconds);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שמירת ההגדרה נכשלה.");
@@ -214,7 +214,7 @@ export const adminSetShowInsights = createServerFn({ method: "POST" })
     const { assertAdmin, setShowInsightsImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await setShowInsightsImpl(data.show);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "שמירת ההגדרה נכשלה.");
@@ -236,7 +236,7 @@ export const adminUploadLogo = createServerFn({ method: "POST" })
     const { assertAdmin, uploadLogoImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await uploadLogoImpl(data);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "העלאת הלוגו נכשלה.");
@@ -249,7 +249,7 @@ export const adminRemoveLogo = createServerFn({ method: "POST" })
     const { assertAdmin, removeLogoImpl } = await import("./admin.server");
     const { GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await removeLogoImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "הסרת הלוגו נכשלה.");
@@ -262,7 +262,7 @@ export const adminCreateGame = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("./admin.server");
     const { createGameImpl, GameError } = await import("./game.server");
     try {
-      assertAdmin(data.token);
+      await assertAdmin(data.token);
       return await createGameImpl();
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "יצירת המשחק נכשלה.");
