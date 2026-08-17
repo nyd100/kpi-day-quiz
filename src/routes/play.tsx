@@ -142,9 +142,10 @@ function PlayPage() {
           {me ? `${me.total_score.toLocaleString("he-IL")} נקודות` : "0 נקודות"}
           {myRank > 0 && ` · מיקום ${myRank}`}
         </p>
-      </div>
-      <div className="flex items-center gap-3">
-        <img src="/strategy-division-logo.png" alt="לוגו" className="h-6 w-auto object-contain" />
+      <div className="flex items-center gap-2">
+        <img src="/ministry-logo.png" alt="משרד העלייה והקליטה" className="h-6 w-auto object-contain" />
+        <div className="h-4 w-px bg-border"></div>
+        <img src="/strategy-division-logo.png" alt="חטיבת אסטרטגיה" className="h-6 w-auto object-contain" />
         <ConnectionBadge state={connection} />
       </div>
     </div>
