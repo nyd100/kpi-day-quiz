@@ -11,8 +11,21 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]!;
+let app;
+try {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]!;
+} catch (err) {
+  console.error("Firebase client init failed (missing env vars?):", err);
+  app = {} as any;
+}
 
-export const db = getFirestore(app);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+export let db = {} as any;
+export let auth = {} as any;
+export let googleProvider = {} as any;
+try {
+  db = getFirestore(app);
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
+} catch (err) {
+  console.error("Firebase client services init failed:", err);
+}
