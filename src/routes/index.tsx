@@ -37,6 +37,11 @@ function JoinPage() {
     if (stored) setExisting({ pin: stored.pin, displayName: stored.displayName });
   }, []);
 
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("pin");
+    if (p && /^\d{4}$/.test(p)) setPin(p);
+  }, []);
+
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!validatePin(pin)) {

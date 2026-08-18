@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 
 import { AnswerTile } from "@/components/quiz/answer-tile";
 import { ConnectionBadge } from "@/components/quiz/connection-badge";
@@ -235,6 +236,9 @@ function PresentPage() {
     ? computeStatistics(answers, players.length, (session?.revealed_answer_id as AnswerId | null) ?? null)
     : null;
 
+  const joinUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/?pin=${host.pin}` : "";
+
   return (
     <main className="mx-auto flex min-h-screen w-[96vw] max-w-[1920px] flex-col gap-6 py-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -271,9 +275,19 @@ function PresentPage() {
       {session?.phase === "LOBBY" && (
         <section className="surface-card flex flex-1 flex-col items-center justify-center gap-4 p-10 text-center">
           <p className="text-lg text-muted-foreground">הצטרפו מהטלפון עם הקוד</p>
-          <p className="tabular text-8xl font-black tracking-[0.2em] text-gradient-accent" dir="ltr">
-            {host.pin}
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-8">
+            <p className="tabular text-8xl font-black tracking-[0.2em] text-gradient-accent" dir="ltr">
+              {host.pin}
+            </p>
+            {joinUrl && (
+              <div className="flex flex-col items-center gap-2">
+                <div className="rounded-2xl bg-white p-4">
+                  <QRCodeSVG value={joinUrl} size={220} marginSize={2} level="M" />
+                </div>
+                <p className="text-muted-foreground">סרקו להצטרפות מהירה</p>
+              </div>
+            )}
+          </div>
           <p className="text-muted-foreground">{players.length} משתתפים מחוברים</p>
           <LeaderboardList players={players} limit={5} compact />
         </section>
@@ -365,6 +379,15 @@ function PresentPage() {
       >
         {sound ? "🔊" : "🔇"}
       </button>
+
+      {session && session.phase !== "LOBBY" && session.phase !== "GAME_COMPLETE" && (
+        <div className="fixed bottom-4 end-4 rounded-xl border border-input bg-background/80 px-4 py-2 text-sm font-semibold backdrop-blur">
+          <span className="text-muted-foreground">הצטרפות: קוד </span>
+          <span className="tabular text-lg font-black text-primary" dir="ltr">
+            {host.pin}
+          </span>
+        </div>
+      )}
     </main>
   );
 }
