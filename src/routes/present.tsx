@@ -9,7 +9,6 @@ import { Countdown } from "@/components/quiz/countdown";
 import { LeaderboardList, Podium } from "@/components/quiz/leaderboard";
 import { ParticipationStrip } from "@/components/quiz/participation-strip";
 import { ResultsBars } from "@/components/quiz/results-bars";
-import { InsightStrip } from "@/components/quiz/insight-strip";
 import { hostCommand, questionTick, verifyHost } from "@/lib/game.functions";
 import { disableSound, enableSound, isSoundEnabled, playCue } from "@/lib/sound";
 import {
@@ -59,8 +58,6 @@ function PresentPage() {
   const questions = useSessionQuestions(host?.sessionId ?? null);
   const players = useLivePlayers(host?.sessionId ?? null);
   const logoUrl = useAppSetting("org_logo_url");
-  const showInsightsSetting = useAppSetting("show_insights");
-  const showInsights = showInsightsSetting !== "false";
 
   useEffect(() => {
     const stored = hostStorage.get();
@@ -269,10 +266,7 @@ function PresentPage() {
       {session?.phase === "LOBBY" && (
         <section className="surface-card flex flex-1 flex-col items-center justify-center gap-4 p-10 text-center">
           <p className="text-lg text-muted-foreground">הצטרפו מהטלפון עם הקוד</p>
-          <div className="flex flex-wrap items-center justify-center gap-8">
-            <p className="tabular text-8xl font-black tracking-[0.2em] text-gradient-accent" dir="ltr">
-              {host.pin}
-            </p>
+          <div className="flex flex-col items-center gap-6">
             {joinUrl && (
               <div className="flex flex-col items-center gap-2">
                 <div className="rounded-2xl bg-white p-4">
@@ -281,6 +275,9 @@ function PresentPage() {
                 <p className="text-muted-foreground">סרקו להצטרפות מהירה</p>
               </div>
             )}
+            <p className="tabular text-8xl font-black tracking-[0.2em] text-gradient-accent" dir="ltr">
+              {host.pin}
+            </p>
           </div>
           <p className="text-muted-foreground">{players.length} משתתפים מחוברים</p>
           <LeaderboardList players={players} limit={5} compact />
@@ -343,14 +340,6 @@ function PresentPage() {
                 answers={question.answers}
                 correctAnswerId={(session.revealed_answer_id as AnswerId | null) ?? null}
               />
-              {showInsights && (
-                <InsightStrip
-                  stats={stats}
-                  answers={question.answers}
-                  category={question.category}
-                  correctAnswerId={(session.revealed_answer_id as AnswerId | null) ?? null}
-                />
-              )}
             </div>
           )}
 

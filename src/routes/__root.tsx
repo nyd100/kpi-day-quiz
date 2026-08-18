@@ -92,7 +92,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:description", content: "הצטרפו לחידון החי של סיכום חציון א' 2026 באמצעות קוד משחק בן ארבע ספרות." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/077441fb25a140c1c92c0d92f0e25837/id-preview-f3b6222a--d76cdc1b-5410-4a29-835b-731681f34a72.lovable.app-1786450892695.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/077441fb25a140c1c92c0d92f0e25837/id-preview-f3b6222a--d76cdc1b-5410-4a29-835b-731681f34a72.lovable.app-1786450892695.png" },
-      { name: "theme-color", content: "#0D1117" },
+      { name: "theme-color", content: "#121B26" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "אימפקט" },
     ],

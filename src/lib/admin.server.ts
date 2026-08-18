@@ -408,6 +408,27 @@ export async function setDefaultDurationImpl(seconds: number) {
   return { defaultDurationSeconds: seconds };
 }
 
+export async function setAllQuestionsDurationImpl(seconds: number) {
+  if (seconds < 5 || seconds > 120 || seconds % 5 !== 0) {
+    throw new GameError("INVALID", "זמן ברירת המחדל חייב להיות בין 5 ל-120 שניות בקפיצות של 5.");
+  }
+  try {
+    const snap = await adminDb.collection("questions").get();
+    const batch = adminDb.batch();
+    snap.docs.forEach((doc) => batch.update(doc.ref, { durationSeconds: seconds }));
+    await batch.commit();
+
+    await adminDb.collection("settings").doc("global").set(
+      { [DURATION_KEY]: seconds, updated_at: new Date().toISOString() },
+      { merge: true }
+    );
+
+    return { seconds, count: snap.size };
+  } catch (error: any) {
+    throw new GameError("DB_ERROR", error.message);
+  }
+}
+
 export async function setShowInsightsImpl(show: boolean) {
   await adminDb.collection("settings").doc("global").set(
     { [SHOW_INSIGHTS_KEY]: show, updated_at: new Date().toISOString() },
