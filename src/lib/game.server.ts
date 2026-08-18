@@ -413,16 +413,19 @@ export async function submitAnswerImpl(input: { sessionId: string; playerId: str
       const pSnap = await t.get(playerRef);
       const pData = pSnap.data()!;
       
+      // NOTE: isCorrect/awardedScore are intentionally NOT stored on the answer
+      // doc — clients read this collection live during the active question, and
+      // persisting correctness there would leak the right answer before reveal.
+      // Correctness/score are applied to the player doc below; the client derives
+      // correctness from the session's revealed_answer_id at results time.
       t.set(answerRef, {
         playerId: input.playerId,
         questionId: input.questionId,
         answerId: input.answerId,
-        isCorrect,
         responseMs,
-        awardedScore: score,
         submittedAt: new Date().toISOString(),
       });
-      
+
       t.update(playerRef, {
         totalScore: pData.totalScore + score,
         correctCount: pData.correctCount + (isCorrect ? 1 : 0),
@@ -505,13 +508,13 @@ export async function questionTickImpl(input: { sessionId: string; hostSecret: s
           const e = await t.get(ansRef);
           if (e.exists) return;
           const pData = (await t.get(pRef)).data()!;
+          // See submitAnswerImpl: correctness/score stay off the client-readable
+          // answer doc so the right answer can't leak mid-question.
           t.set(ansRef, {
             playerId: bot.id,
             questionId,
             answerId: chosen,
-            isCorrect,
             responseMs: plannedMs,
-            awardedScore: score,
             submittedAt: new Date().toISOString(),
           });
           t.update(pRef, {

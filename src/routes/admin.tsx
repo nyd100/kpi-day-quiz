@@ -107,7 +107,11 @@ function AdminPage() {
   useEffect(() => {
     setGame(hostStorage.get());
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+      // The live-game hooks sign the operator in anonymously so client-side
+      // Firestore reads work; that is NOT an admin login. Only verify real
+      // (Google) accounts here — otherwise the anonymous session triggers a
+      // spurious "אין הרשאות ניהול" error before the login screen even shows.
+      if (user && !user.isAnonymous) {
         try {
           const idToken = await user.getIdToken();
           setToken(idToken);

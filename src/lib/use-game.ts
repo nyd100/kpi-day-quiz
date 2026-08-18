@@ -202,9 +202,7 @@ export function useQuestionAnswers(sessionId: string | null, questionId: number,
           player_id: a.playerId,
           question_id: a.questionId,
           answer_id: a.answerId,
-          is_correct: a.isCorrect,
           response_ms: a.responseMs,
-          awarded_score: a.awardedScore,
         } as unknown as AnswerRow;
       }));
     });

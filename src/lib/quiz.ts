@@ -60,9 +60,7 @@ export type AnswerRow = {
   player_id: string;
   question_id: number;
   answer_id: string;
-  is_correct: boolean;
   response_ms: number;
-  awarded_score: number;
 };
 
 /** Identity system: position + colour + shape + text (never colour alone). */
