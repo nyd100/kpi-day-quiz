@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// Firestore security rules for kpi-day-quiz.
+// Clients (players/hosts) authenticate anonymously and READ live game data in
+// real time. ALL writes go through server functions using the Firebase Admin
+// SDK, which bypasses these rules — so client writes are denied everywhere.
+// Correct-answer data (question_keys, sessions/*/keys) and admin lists are
+// never exposed to clients.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Public quiz questions shown to players (no correct answers here).
+    match /questions/{questionId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Global app settings (logo, default duration, show-insights flag).
+    match /settings/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Live sessions and the player-facing subcollections streamed to clients.
+    match /sessions/{sessionId} {
+      allow read: if signedIn();
+      allow write: if false;
+
+      match /players/{playerId} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+      match /answers/{answerId} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+      match /questions/{position} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+      // Per-session correct-answer keys: server-only, never readable by clients.
+      match /keys/{position} {
+        allow read, write: if false;
+      }
+    }
+
+    // Correct-answer keys and admin allow-list: server-only.
+    match /question_keys/{id} {
+      allow read, write: if false;
+    }
+    match /authorized_admins/{email} {
+      allow read, write: if false;
+    }
+
+    // Default deny for anything not explicitly matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
