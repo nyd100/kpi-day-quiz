@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { auth, googleProvider } from "@/integrations/firebase/client";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
@@ -512,9 +512,14 @@ function AdminPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/present" className="rounded-xl border border-input px-4 py-2 text-sm font-semibold">
+          <a
+            href="/present"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-input px-4 py-2 text-sm font-semibold"
+          >
             מסך המשחק החי
-          </Link>
+          </a>
           <button
             onClick={() => void handleSignOut()}
             className="rounded-xl border border-input px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
@@ -546,19 +551,21 @@ function AdminPage() {
               <span className="tabular rounded-xl bg-primary px-4 py-2 text-lg font-black text-primary-foreground" dir="ltr">
                 {game.pin}
               </span>
-              <Link
-                to="/present"
+              <a
+                href="/present"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="h-12 rounded-xl border border-input px-6 font-semibold leading-[3rem]"
               >
                 התחלת החידון ←
-              </Link>
+              </a>
             </>
           )}
         </div>
       </section>
 
       {game && (
-        <section className="surface-card mb-6 space-y-3 p-5">
+        <section className="surface-card mb-6 space-y-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-bold">שליטה במשחק החי</h2>
             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -566,23 +573,29 @@ function AdminPage() {
                 {players.length} משתתפים
               </span>
               <span className="rounded-lg bg-muted px-3 py-1 font-semibold">
-                שאלה {questionIndex || 0}/{totalLive}
-              </span>
-              {session?.phase === "QUESTION_ACTIVE" && (
-                <span className="tabular rounded-lg bg-primary px-3 py-1 font-black text-primary-foreground">
-                  {seconds}s
-                </span>
-              )}
-              <span className="rounded-lg bg-muted px-3 py-1 font-semibold">
                 {session?.phase ?? "—"}
               </span>
             </div>
           </div>
 
-          {liveQuestion && (
-            <p className="text-sm text-muted-foreground">{liveQuestion.title}</p>
-          )}
+          {/* Current question — kept prominent so the operator always knows what's live */}
+          <div className="rounded-xl border border-input bg-background/40 p-4">
+            <p className="text-xs font-bold tracking-widest text-primary">
+              {questionIndex >= 1 ? `שאלה ${questionIndex}/${totalLive}` : "בהמתנה לתחילת המשחק"}
+            </p>
+            {liveQuestion ? (
+              <p className="mt-1 text-xl font-black leading-snug">{liveQuestion.title}</p>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">אין שאלה פעילה כרגע.</p>
+            )}
+            {session?.phase === "QUESTION_ACTIVE" && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {players.length} משתתפים במשחק · נותרו {seconds} שניות
+              </p>
+            )}
+          </div>
 
+          {/* Flow controls — the main actions the operator clicks during the game */}
           <div className="flex flex-wrap items-center gap-2">
             {(() => {
               const step = session
@@ -592,7 +605,7 @@ function AdminPage() {
                 <button
                   onClick={() => step && void run(step.action)}
                   disabled={busy || !step}
-                  className="h-12 flex-1 rounded-xl bg-gradient-accent px-6 font-bold text-primary-foreground disabled:opacity-50"
+                  className="h-14 flex-1 rounded-xl bg-gradient-accent px-6 text-lg font-bold text-primary-foreground disabled:opacity-50"
                 >
                   {step ? `${step.label} ←` : "המשחק הסתיים"}
                 </button>
@@ -601,47 +614,63 @@ function AdminPage() {
             <button
               onClick={() => void run("LOCK")}
               disabled={busy || session?.phase !== "QUESTION_ACTIVE"}
-              className="h-12 rounded-xl border border-input px-4 font-semibold disabled:opacity-50"
+              className="h-14 rounded-xl border border-input px-4 font-semibold disabled:opacity-50"
             >
               נעילת שאלה
             </button>
-            <button
-              onClick={() => void run("ADD_BOTS", 10)}
-              disabled={busy}
-              className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
-            >
-              + 10 בוטים
-            </button>
-            <button
-              onClick={() => void run("CLEAR_BOTS")}
-              disabled={busy}
-              className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
-            >
-              ניקוי בוטים
-            </button>
-            <button
-              onClick={() => void run("TOGGLE_LATE_JOIN")}
-              disabled={busy}
-              className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
-            >
-              {session?.allow_late_join ? "חסימת הצטרפות מאוחרת" : "אפשור הצטרפות מאוחרת"}
-            </button>
-            <button
-              onClick={() => void run("RESET")}
-              disabled={busy}
-              className="h-12 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
-            >
-              איפוס
-            </button>
-            <button
-              onClick={() => {
-                if (confirm("לסגור את המשחק הנוכחי?")) void run("DELETE");
-              }}
-              disabled={busy}
-              className="h-12 rounded-xl border border-destructive/40 px-4 text-sm font-semibold text-destructive disabled:opacity-50"
-            >
-              סגירת משחק
-            </button>
+          </div>
+
+          {/* Utility controls — separated so they don't get mistaken for the flow buttons */}
+          <div className="border-t border-border pt-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              כלים
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => void run("ADD_BOTS", 10)}
+                disabled={busy}
+                className="h-11 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+              >
+                + 10 בוטים
+              </button>
+              <button
+                onClick={() => void run("ADD_BOTS", 100)}
+                disabled={busy}
+                className="h-11 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+              >
+                + 100 בוטים
+              </button>
+              <button
+                onClick={() => void run("CLEAR_BOTS")}
+                disabled={busy}
+                className="h-11 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+              >
+                ניקוי בוטים
+              </button>
+              <button
+                onClick={() => void run("TOGGLE_LATE_JOIN")}
+                disabled={busy}
+                className="h-11 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+              >
+                {session?.allow_late_join ? "חסימת הצטרפות מאוחרת" : "אפשור הצטרפות מאוחרת"}
+              </button>
+              <button
+                onClick={() => void run("RESET")}
+                disabled={busy}
+                className="h-11 rounded-xl border border-input px-4 text-sm font-semibold disabled:opacity-50"
+              >
+                איפוס
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm("לסגור את המשחק הנוכחי?")) void run("DELETE");
+                }}
+                disabled={busy}
+                className="h-11 rounded-xl border border-destructive/40 px-4 text-sm font-semibold text-destructive disabled:opacity-50"
+              >
+                סגירת משחק
+              </button>
+            </div>
           </div>
         </section>
       )}

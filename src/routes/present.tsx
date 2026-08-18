@@ -306,13 +306,19 @@ function PresentPage() {
               />
             )}
 
-          {(session.phase === "QUESTION_INTRO" ||
-            session.phase === "QUESTION_ACTIVE" ||
-            session.phase === "QUESTION_LOCKED") && (
+          {(session.phase === "QUESTION_ACTIVE" || session.phase === "QUESTION_LOCKED") && (
             <div className="grid flex-1 gap-4 sm:grid-cols-2">
               {question.answers.map((a) => (
                 <AnswerTile key={a.id} id={a.id} text={a.text} size="stage" />
               ))}
+            </div>
+          )}
+
+          {session.phase === "QUESTION_INTRO" && (
+            <div className="flex flex-1 items-center justify-center">
+              <p className="text-lg text-muted-foreground">
+                התשובות יופיעו כשהמנחה ילחץ להמשך
+              </p>
             </div>
           )}
 

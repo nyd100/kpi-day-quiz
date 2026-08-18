@@ -61,10 +61,10 @@ function JoinPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
+    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-4">
       <div className="w-full max-w-md">
-        <header className="mb-8 text-center">
-          <div className="mx-auto mb-6 w-full max-w-xs rounded-2xl bg-white p-3">
+        <header className="mb-4 text-center">
+          <div className="mx-auto mb-3 w-full max-w-[14rem]">
             <img
               src="/strategy-division-logo.png"
               alt="חטיבת אסטרטגיה ותכנון מדיניות"
@@ -74,14 +74,14 @@ function JoinPage() {
           <p className="mb-2 text-sm font-semibold tracking-widest text-primary">
             סיכום חציון א' 2026
           </p>
-          <h1 className="text-5xl font-black leading-tight">
+          <h1 className="text-4xl font-black leading-tight">
             <span className="text-gradient-accent">ממספרים לאימפקט</span>
           </h1>
           <p className="mt-3 text-muted-foreground">חידון חי – הצטרפו מהטלפון</p>
         </header>
 
         {hydrated && existing && (
-          <div className="surface-card mb-4 flex items-center justify-between gap-3 p-4 text-sm">
+          <div className="surface-card mb-3 flex items-center justify-between gap-3 p-3 text-sm">
             <span className="text-muted-foreground">
               יש חיבור פעיל בשם <strong className="text-foreground">{existing.displayName}</strong>
             </span>
@@ -94,7 +94,7 @@ function JoinPage() {
           </div>
         )}
 
-        <form onSubmit={onSubmit} className="surface-card space-y-5 p-6">
+        <form onSubmit={onSubmit} className="surface-card space-y-4 p-5">
           <div>
             <label htmlFor="pin" className="mb-2 block text-sm font-semibold">
               קוד משחק
@@ -135,7 +135,7 @@ function JoinPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
+        <p className="mt-4 text-center text-xs text-muted-foreground">
           המתינו להוראות המנחה על המסך הגדול.
         </p>
       </div>
