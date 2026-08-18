@@ -235,7 +235,7 @@ function PlayPage() {
           {session.phase === "QUESTION_ACTIVE" && (
             <div className="text-center text-xs text-muted-foreground" aria-live="polite">
               <span className="tabular font-black text-foreground">{liveAnswers.length}</span>
-              {" "}מתוך {players.length} כבר ענו
+              {" "}כבר ענו
             </div>
           )}
         </section>
