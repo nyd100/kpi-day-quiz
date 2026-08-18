@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const uuid = z.string().uuid();
+// Firestore document IDs (used for session/player ids) are 20-char alphanumeric
+// strings, not UUIDs — validate as a non-empty bounded id string.
+const uuid = z.string().min(1).max(128);
 const secret = z.string().min(16).max(128);
 
 export const getServerTime = createServerFn({ method: "GET" }).handler(async () => {
