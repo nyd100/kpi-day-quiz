@@ -243,17 +243,11 @@ function PresentPage() {
     <main className="mx-auto flex min-h-screen w-[96vw] max-w-[1920px] flex-col gap-6 py-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-4 rounded-xl bg-white p-2">
+          <div className="flex items-center rounded-2xl bg-white px-5 py-3 shadow-lg">
             <img
               src="/ministry-logo.png"
               alt="לוגו משרד העלייה והקליטה"
-              className="h-12 w-auto object-contain"
-            />
-            <div className="h-8 w-px bg-border"></div>
-            <img
-              src="/strategy-division-logo.png"
-              alt="חטיבת אסטרטגיה ותכנון מדיניות"
-              className="h-12 w-auto object-contain"
+              className="h-16 w-auto object-contain"
             />
           </div>
           <div>
