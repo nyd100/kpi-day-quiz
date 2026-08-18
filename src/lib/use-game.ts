@@ -3,7 +3,7 @@ import { db } from "@/integrations/firebase/client";
 import { collection, doc, onSnapshot, query, orderBy, where, getDocs, getDoc } from "firebase/firestore";
 import { getServerTime } from "@/lib/game.functions";
 import type { AnswerRow, PlayerRow, QuizQuestion, SessionRow } from "@/lib/quiz";
-import { signInAnonymously, getAuth } from "firebase/auth";
+import { signInAnonymously, getAuth, onAuthStateChanged } from "firebase/auth";
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "offline";
 
@@ -43,13 +43,18 @@ export function useServerClock() {
   return useCallback(() => Date.now() + offset, [offset]);
 }
 
-/** Make sure Anonymous Auth is initialized */
+/** Ensure a Firebase user exists for Firestore reads, without clobbering a
+ *  persisted account. We wait for onAuthStateChanged rather than checking
+ *  auth.currentUser synchronously: on load currentUser is momentarily null while
+ *  Firebase restores the persisted session, and signing in anonymously in that
+ *  window would replace a real (Google/admin) login and log the operator out. */
 function useEnsureAuth() {
   useEffect(() => {
     const auth = getAuth();
-    if (!auth.currentUser) {
-      signInAnonymously(auth).catch(console.error);
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) signInAnonymously(auth).catch(console.error);
+    });
+    return unsubscribe;
   }, []);
 }
 

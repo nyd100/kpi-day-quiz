@@ -99,9 +99,13 @@ async function loadKey(sessionId: string, position: number): Promise<AnswerId> {
 }
 
 async function buildSnapshot(sessionId: string): Promise<number> {
-  const qSnap = await adminDb.collection("questions").where("isEnabled", "==", true).orderBy("orderIndex").get();
-  if (qSnap.empty) throw new GameError("NO_QUESTIONS", "אין שאלות פעילות להתחלת משחק.");
-  
+  // Order by a single field and filter isEnabled in memory: combining
+  // where("isEnabled") with orderBy("orderIndex") would require a composite
+  // Firestore index (and fail with FAILED_PRECONDITION until one is created).
+  const qAll = await adminDb.collection("questions").orderBy("orderIndex").get();
+  const enabledDocs = qAll.docs.filter((d) => d.data().isEnabled !== false);
+  if (enabledDocs.length === 0) throw new GameError("NO_QUESTIONS", "אין שאלות פעילות להתחלת משחק.");
+
   const keysSnap = await adminDb.collection("question_keys").get();
   const keyMap = new Map(keysSnap.docs.map(d => [d.id, d.data()]));
 
@@ -113,7 +117,7 @@ async function buildSnapshot(sessionId: string): Promise<number> {
   const existingK = await adminDb.collection(`sessions/${sessionId}/keys`).get();
   existingK.docs.forEach(d => batch.delete(d.ref));
 
-  qSnap.docs.forEach((doc, i) => {
+  enabledDocs.forEach((doc, i) => {
     const q = doc.data();
     const pos = i + 1;
     const qRef = adminDb.collection(`sessions/${sessionId}/questions`).doc(String(pos));
@@ -141,7 +145,7 @@ async function buildSnapshot(sessionId: string): Promise<number> {
   });
 
   await batch.commit();
-  return qSnap.size;
+  return enabledDocs.length;
 }
 
 export async function createGameImpl() {
@@ -440,24 +444,24 @@ export async function submitAnswerImpl(input: { sessionId: string; playerId: str
   }
 }
 
-export async function playerStateImpl(input: { playerId: string; playerSecret: string }) {
-  // player secret is now validated in assertPlayer, but we need session id first.
-  // Wait, assertPlayer requires sessionId. Where do we get it?
-  // We can query all players across sessions? Firestore Collection Group query!
-  const playersSnap = await adminDb.collectionGroup("players").where("playerSecretHash", "==", await sha256(input.playerSecret)).get();
-  const playerDoc = playersSnap.docs.find(d => d.id === input.playerId);
-  if (!playerDoc) throw new GameError("NOT_FOUND", "השחקן לא נמצא או זיהוי שגוי.");
-  
-  const pData = playerDoc.data();
-  // Document path is sessions/{sessionId}/players/{playerId}
-  const sessionId = playerDoc.ref.parent.parent!.id;
-  
-  await playerDoc.ref.update({ lastSeenAt: new Date().toISOString() });
-  
-  const session = await loadSession(sessionId);
+export async function playerStateImpl(input: { sessionId: string; playerId: string; playerSecret: string }) {
+  // The client already knows its sessionId (stored at join time), so look the
+  // player up directly instead of a collectionGroup query — the latter needs a
+  // dedicated collection-group index and silently failed until one was created.
+  const playerRef = adminDb.collection(`sessions/${input.sessionId}/players`).doc(input.playerId);
+  const playerDoc = await playerRef.get();
+  if (!playerDoc.exists) throw new GameError("NOT_FOUND", "השחקן לא נמצא או זיהוי שגוי.");
+
+  const pData = playerDoc.data() as any;
+  const hash = await sha256(input.playerSecret);
+  if (pData.playerSecretHash !== hash) throw new GameError("FORBIDDEN", "זיהוי השחקן אינו תקין.");
+
+  await playerRef.update({ lastSeenAt: new Date().toISOString() });
+
+  const session = await loadSession(input.sessionId);
   const answerId = `${session.currentQuestionIndex}_${input.playerId}`;
-  const answerSnap = await adminDb.collection(`sessions/${sessionId}/answers`).doc(answerId).get();
-  
+  const answerSnap = await adminDb.collection(`sessions/${input.sessionId}/answers`).doc(answerId).get();
+
   return {
     sessionId: session.id,
     pin: session.pin,

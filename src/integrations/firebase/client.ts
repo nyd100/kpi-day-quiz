@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -26,6 +26,11 @@ try {
   db = getFirestore(app);
   auth = getAuth(app);
   googleProvider = new GoogleAuthProvider();
+  // Keep the operator/player signed in across reloads and new tabs until they
+  // explicitly sign out (this is Firebase's default, set explicitly to be sure).
+  setPersistence(auth, browserLocalPersistence).catch((err) =>
+    console.error("Failed to set auth persistence:", err),
+  );
 } catch (err) {
   console.error("Firebase client services init failed:", err);
 }

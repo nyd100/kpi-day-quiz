@@ -67,7 +67,11 @@ function PlayPage() {
     if (!stored) return;
     try {
       const state = await playerState({
-        data: { playerId: stored.playerId, playerSecret: stored.playerSecret },
+        data: {
+          sessionId: stored.sessionId,
+          playerId: stored.playerId,
+          playerSecret: stored.playerSecret,
+        },
       });
       setAnsweredId((state.answeredCurrent as AnswerId | null) ?? null);
     } catch {

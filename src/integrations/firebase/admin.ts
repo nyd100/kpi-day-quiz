@@ -50,6 +50,19 @@ try {
 }
 
 const ready = getApps().length > 0;
-export const adminDb = ready ? getFirestore() : ({} as any);
+
+function makeFirestore() {
+  const db = getFirestore();
+  // Ignore undefined fields instead of throwing, so a stray optional value never
+  // aborts a write. Must be set before the instance is first used.
+  try {
+    db.settings({ ignoreUndefinedProperties: true });
+  } catch {
+    /* settings already applied (hot reload) — safe to ignore */
+  }
+  return db;
+}
+
+export const adminDb = ready ? makeFirestore() : ({} as any);
 export const adminAuth = ready ? getAuth() : ({} as any);
 export const adminStorage = ready ? getStorage() : ({} as any);

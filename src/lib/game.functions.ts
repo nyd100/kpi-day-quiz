@@ -108,7 +108,7 @@ export const submitAnswer = createServerFn({ method: "POST" })
 
 export const playerState = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
-    z.object({ playerId: uuid, playerSecret: secret }).parse(data),
+    z.object({ sessionId: uuid, playerId: uuid, playerSecret: secret }).parse(data),
   )
   .handler(async ({ data }) => {
     const { playerStateImpl, GameError } = await import("./game.server");

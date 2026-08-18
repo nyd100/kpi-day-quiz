@@ -273,9 +273,13 @@ export async function restoreDefaultQuestionsImpl() {
     existingK.docs.forEach(doc => batch.delete(doc.ref));
 
     for (const q of DEFAULT_QUESTIONS) {
-      const qRef = adminDb.collection("questions").doc(String(q.id));
-      const kRef = adminDb.collection("question_keys").doc(String(q.id));
-      
+      // DefaultQuestion has no `id` field — it is keyed by `order`. Using q.id
+      // here wrote every question to doc("undefined") and set id:undefined
+      // (rejected by Firestore). Key each question by its order instead.
+      const questionId = q.order;
+      const qRef = adminDb.collection("questions").doc(String(questionId));
+      const kRef = adminDb.collection("question_keys").doc(String(questionId));
+
       const answers = [
         { id: "A", text: q.answers[0] },
         { id: "B", text: q.answers[1] },
@@ -284,7 +288,7 @@ export async function restoreDefaultQuestionsImpl() {
       ];
 
       batch.set(qRef, {
-        id: q.id,
+        id: questionId,
         category: q.category,
         pairId: q.pairId,
         title: q.title,
@@ -299,7 +303,7 @@ export async function restoreDefaultQuestionsImpl() {
       });
 
       batch.set(kRef, {
-        questionId: q.id,
+        questionId,
         correctAnswerId: q.correctAnswerId,
         explanation: null,
       });
