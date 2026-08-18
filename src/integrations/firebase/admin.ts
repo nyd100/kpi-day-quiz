@@ -1,15 +1,20 @@
-// Firebase Admin SDK — modular entry points only.
-// The default `import admin from "firebase-admin"` resolves to `undefined` in the
-// bundled Nitro/Vercel server (CJS/ESM interop), which made `admin.apps` throw
-// "Cannot read properties of undefined (reading 'apps')" on every admin call.
-// The modular subpath imports below are ESM-safe and avoid that pitfall.
-import { initializeApp, getApps, cert, type ServiceAccount } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
-import { getStorage } from "firebase-admin/storage";
+// Firebase Admin SDK.
+//
+// firebase-admin is CommonJS. Two bundling pitfalls to avoid:
+//   * `import admin from "firebase-admin"` → the default resolves to `undefined`
+//     under rollup/nitro interop ("Cannot read properties of undefined
+//     (reading 'apps')").
+//   * modular subpath imports (`firebase-admin/app` etc.) split it across chunks
+//     and its internal `@firebase/app` ends up undefined ("reading 'SDK_VERSION'").
+// A namespace import keeps the whole package as one CJS module whose internals
+// reference each other consistently; the `.default ?? ns` fallback covers both
+// interop shapes the bundler may produce.
+import * as adminNs from "firebase-admin";
+
+const admin = ((adminNs as any).default ?? adminNs) as typeof import("firebase-admin");
 
 try {
-  if (!getApps().length) {
+  if (!admin.apps.length) {
     let credential;
 
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -18,7 +23,7 @@ try {
         if (serviceAccount.private_key) {
           serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
         }
-        credential = cert(serviceAccount as ServiceAccount);
+        credential = admin.credential.cert(serviceAccount);
       } catch (error) {
         console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT", error);
       }
@@ -27,7 +32,7 @@ try {
       process.env.FIREBASE_PRIVATE_KEY &&
       process.env.FIREBASE_CLIENT_EMAIL
     ) {
-      credential = cert({
+      credential = admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
@@ -37,7 +42,7 @@ try {
     // Only initialize when a valid credential was explicitly provided.
     // In Vercel, applicationDefault() would crash without Google Cloud env present.
     if (credential) {
-      initializeApp({
+      admin.initializeApp({
         credential,
         storageBucket:
           process.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
@@ -52,9 +57,8 @@ try {
   console.error("Fatal error during Firebase Admin initialization:", err);
 }
 
-// These stay as empty stand-ins until a valid credential initializes the app,
-// so importing this module never crashes the server on boot.
-const ready = getApps().length > 0;
-export const adminDb = ready ? getFirestore() : ({} as any);
-export const adminAuth = ready ? getAuth() : ({} as any);
-export const adminStorage = ready ? getStorage() : ({} as any);
+// Empty stand-ins until a valid credential initializes the app, so importing
+// this module never crashes the server on boot.
+export const adminDb = admin.apps.length ? admin.firestore() : ({} as any);
+export const adminAuth = admin.apps.length ? admin.auth() : ({} as any);
+export const adminStorage = admin.apps.length ? admin.storage() : ({} as any);
