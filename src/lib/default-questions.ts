@@ -58,7 +58,7 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     durationSeconds: 20,
     pairId: 1,
     title:
-      'כמה כיתות "פלא ועל" חדשות לתגבור עברית ולימודים לילדים ונוער נפתחו בעיר תל אביב בחציון א\'?',
+      'כמה כיתות פל״א ויע״ל חדשות לתגבור עברית ולימודים לילדים ונוער נפתחו בעיר תל אביב בחציון א\'?',
     answers: ["כיתה 1", "2 כיתות", "3 כיתות", "5 כיתות"],
     correctAnswerId: "C",
   },
@@ -68,7 +68,7 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     durationSeconds: 30,
     pairId: 1,
     title:
-      'נפתחו 3 כיתות "פלא ועל" חדשות. מהו מדד התוצאה (Outcome) האמיתי שתרצה ההנהלה למדוד בחציון הבא עבור תוכנית זו?',
+      'נפתחו 3 כיתות פל״א ויע״ל חדשות. מהו מדד התוצאה (Outcome) האמיתי שתרצה ההנהלה למדוד בחציון הבא עבור תוכנית זו?',
     answers: [
       "פתיחת 2 כיתות נוספות בחציון ב'",
       "עלייה של 30% בציוני העברית והשתלבות נורמטיבית של התלמידים בבתי הספר",
@@ -202,7 +202,7 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
 
 /** Informational pair metadata (survives reordering). */
 export const PAIR_TOPICS: Record<number, string> = {
-  1: "כיתות פלא ועל",
+  1: "כיתות פל״א ויע״ל",
   2: "פגישות מ.י.ם",
   3: "רופאים וקורסי עברית טרום-עלייה",
   4: "מערך הליווי לעידוד עלייה",

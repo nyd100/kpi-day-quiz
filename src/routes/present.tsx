@@ -257,8 +257,11 @@ function PresentPage() {
           <span className="tabular rounded-xl bg-muted px-3 py-2 text-sm font-bold">
             {players.length} משתתפים
           </span>
-          <span className="tabular rounded-xl bg-primary px-4 py-2 text-xl font-black text-primary-foreground" dir="ltr">
-            {host.pin}
+          <span className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
+            קוד הצטרפות:{" "}
+            <span className="tabular text-xl font-black" dir="ltr">
+              {host.pin}
+            </span>
           </span>
         </div>
       </header>
@@ -363,14 +366,6 @@ function PresentPage() {
         {sound ? "🔊" : "🔇"}
       </button>
 
-      {session && session.phase !== "LOBBY" && session.phase !== "GAME_COMPLETE" && (
-        <div className="fixed bottom-4 end-4 rounded-xl border border-input bg-background/80 px-4 py-2 text-sm font-semibold backdrop-blur">
-          <span className="text-muted-foreground">הצטרפות: קוד </span>
-          <span className="tabular text-lg font-black text-primary" dir="ltr">
-            {host.pin}
-          </span>
-        </div>
-      )}
     </main>
   );
 }

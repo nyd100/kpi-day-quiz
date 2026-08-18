@@ -13,6 +13,7 @@ import {
   useHydrated,
   useLivePlayers,
   useLiveSession,
+  useQuestionAnswers,
   useSessionQuestions,
   useServerClock,
   type PlayerIdentity,
@@ -59,6 +60,13 @@ function PlayPage() {
   const question = useMemo(
     () => questions.find((q) => q.id === questionIndex) ?? null,
     [questions, questionIndex],
+  );
+
+  // Live count of how many participants have already answered this question.
+  const liveAnswers = useQuestionAnswers(
+    identity?.sessionId ?? null,
+    questionIndex,
+    session?.phase === "QUESTION_ACTIVE" || session?.phase === "QUESTION_LOCKED",
   );
 
   // Reconnect / refresh: restore whether this player already answered.
@@ -223,6 +231,13 @@ function PlayPage() {
                 ? "הזמן נגמר"
                 : "בחרו תשובה אחת"}
           </div>
+
+          {session.phase === "QUESTION_ACTIVE" && (
+            <div className="text-center text-xs text-muted-foreground" aria-live="polite">
+              <span className="tabular font-black text-foreground">{liveAnswers.length}</span>
+              {" "}מתוך {players.length} כבר ענו
+            </div>
+          )}
         </section>
       )}
 
