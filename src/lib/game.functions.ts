@@ -11,27 +11,11 @@ export const getServerTime = createServerFn({ method: "GET" }).handler(async () 
 });
 
 
-export const verifyHost = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
-    z.object({ sessionId: uuid, hostSecret: secret }).parse(data),
-  )
-  .handler(async ({ data }) => {
-    const { assertHost, GameError } = await import("./game.server");
-    try {
-      const session = await assertHost(data.sessionId, data.hostSecret);
-      return { ok: true as const, pin: session.pin, status: session.status };
-    } catch (error) {
-      if (error instanceof GameError) return { ok: false as const, pin: "", status: "" };
-      throw error;
-    }
-  });
-
 export const hostCommand = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
       .object({
-        sessionId: uuid,
-        hostSecret: secret,
+        token: z.string().min(1),
         action: z.enum([
           "START_GAME",
           "START_QUESTION",
@@ -51,22 +35,28 @@ export const hostCommand = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const { hostCommandImpl, GameError } = await import("./game.server");
+    const { assertAdmin } = await import("./admin.server");
+    const { hostCommandImpl, getActiveGameImpl, GameError } = await import("./game.server");
     try {
-      return await hostCommandImpl(data);
+      await assertAdmin(data.token);
+      const active = await getActiveGameImpl();
+      if (!active) throw new GameError("NO_GAME", "אין משחק פעיל.");
+      return await hostCommandImpl(active.sessionId, data.action, data.count);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "הפעולה נכשלה.");
     }
   });
 
 export const questionTick = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
-    z.object({ sessionId: uuid, hostSecret: secret }).parse(data),
-  )
+  .inputValidator((data: unknown) => z.object({ token: z.string().min(1) }).parse(data))
   .handler(async ({ data }) => {
-    const { questionTickImpl, GameError } = await import("./game.server");
+    const { assertAdmin } = await import("./admin.server");
+    const { questionTickImpl, getActiveGameImpl, GameError } = await import("./game.server");
     try {
-      return await questionTickImpl(data);
+      await assertAdmin(data.token);
+      const active = await getActiveGameImpl();
+      if (!active) return { answered: 0, total: 0 };
+      return await questionTickImpl(active.sessionId);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "עדכון המצב נכשל.");
     }

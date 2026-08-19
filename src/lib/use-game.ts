@@ -89,6 +89,32 @@ export function useQuestions() {
   return questions;
 }
 
+/** Discovers the single active game from Firestore so any device — not just
+ *  the one that created it — can operate/display it. Mirrors getActiveGameImpl
+ *  on the server: single-equality query, sorted by createdAt in memory. */
+export function useActiveGame() {
+  useEnsureAuth();
+  const [active, setActive] = useState<{ sessionId: string; pin: string } | null>(null);
+
+  useEffect(() => {
+    const q = query(collection(db, "sessions"), where("status", "==", "ACTIVE"));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      if (snap.empty) {
+        setActive(null);
+        return;
+      }
+      const docs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }) as any)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const newest = docs[0];
+      setActive({ sessionId: newest.id, pin: newest.pin });
+    });
+    return () => unsubscribe();
+  }, []);
+
+  return active;
+}
+
 export function useLiveSession(sessionId: string | null) {
   useEnsureAuth();
   const [session, setSession] = useState<SessionRow | null>(null);

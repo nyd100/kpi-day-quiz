@@ -58,22 +58,12 @@ type SessionRecord = {
   allowLateJoin: boolean;
   expiresAt: string;
   totalQuestions: number;
-  hostSecretHash?: string;
 };
 
 export async function loadSession(sessionId: string): Promise<SessionRecord> {
   const snap = await adminDb.collection("sessions").doc(sessionId).get();
   if (!snap.exists) throw new GameError("NOT_FOUND", "המשחק לא נמצא.");
   return { id: snap.id, ...snap.data() } as SessionRecord;
-}
-
-export async function assertHost(sessionId: string, hostSecret: string): Promise<SessionRecord> {
-  const session = await loadSession(sessionId);
-  const hash = await sha256(hostSecret ?? "");
-  if (!session.hostSecretHash || session.hostSecretHash !== hash) {
-    throw new GameError("FORBIDDEN", "אין הרשאת מנחה למשחק הזה.");
-  }
-  return session;
 }
 
 async function assertPlayer(sessionId: string, playerId: string, playerSecret: string) {
@@ -149,19 +139,26 @@ async function buildSnapshot(sessionId: string): Promise<number> {
 }
 
 export async function createGameImpl() {
-  const hostSecret = randomToken();
-  const hostSecretHash = await sha256(hostSecret);
+  // Enforce a single active game at a time: end every currently-ACTIVE
+  // session before creating the new one, so any device that discovers the
+  // active game via Firestore always finds at most one.
+  const activeSnap = await adminDb.collection("sessions").where("status", "==", "ACTIVE").get();
+  if (!activeSnap.empty) {
+    const endBatch = adminDb.batch();
+    activeSnap.docs.forEach((d) => endBatch.update(d.ref, { status: "ENDED", updatedAt: new Date().toISOString() }));
+    await endBatch.commit();
+  }
 
   for (let attempt = 0; attempt < 12; attempt++) {
     const pin = randomPin();
-    
+
     try {
       const sessionId = await adminDb.runTransaction(async (t) => {
         const existing = await t.get(adminDb.collection("sessions").where("pin", "==", pin).where("status", "==", "ACTIVE").limit(1));
         if (!existing.empty) {
           throw new Error("COLLISION"); // handled in catch
         }
-        
+
         const newRef = adminDb.collection("sessions").doc();
         const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
         t.set(newRef, {
@@ -176,11 +173,10 @@ export async function createGameImpl() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           expiresAt,
-          hostSecretHash,
         });
         return newRef.id;
       });
-      return { sessionId, pin, hostSecret };
+      return { sessionId, pin };
     } catch (e: any) {
       if (e.message === "COLLISION") continue;
       throw new GameError("DB_ERROR", e.message);
@@ -189,23 +185,48 @@ export async function createGameImpl() {
   throw new GameError("PIN_EXHAUSTED", "לא הצלחנו להקצות קוד משחק פנוי. נסו שוב.");
 }
 
+export async function getActiveGameImpl(): Promise<{
+  sessionId: string;
+  pin: string;
+  phase: GamePhase;
+  currentQuestionIndex: number;
+  totalQuestions: number;
+  allowLateJoin: boolean;
+} | null> {
+  // Single-equality query (no orderBy) to avoid requiring a composite index;
+  // sort by createdAt in memory instead.
+  const snap = await adminDb.collection("sessions").where("status", "==", "ACTIVE").get();
+  if (snap.empty) return null;
+  const docs = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as SessionRecord & { createdAt: string })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const newest = docs[0]!;
+  return {
+    sessionId: newest.id,
+    pin: newest.pin,
+    phase: newest.phase,
+    currentQuestionIndex: newest.currentQuestionIndex,
+    totalQuestions: newest.totalQuestions,
+    allowLateJoin: newest.allowLateJoin,
+  };
+}
+
 export type HostAction = GameAction | "LOCK" | "RESET" | "DELETE" | "ADD_BOTS" | "CLEAR_BOTS" | "TOGGLE_LATE_JOIN";
 const GAME_ACTIONS: GameAction[] = ["START_GAME", "START_QUESTION", "LOCK", "SHOW_RESULTS", "SHOW_LEADERBOARD", "NEXT_QUESTION", "FINISH"];
 
 const BOT_FIRST_NAMES = ["נועה","איתי","שירה","יונתן","מאיה","עומר","תמר","אורי","ליאור","רוני","דנה","אלון","הילה","גיא","יעל","אמיר"];
 
-export async function hostCommandImpl(input: { sessionId: string; hostSecret: string; action: HostAction; count?: number }) {
-  const session = await assertHost(input.sessionId, input.hostSecret);
+export async function hostCommandImpl(sessionId: string, action: HostAction, count?: number) {
+  const session = await loadSession(sessionId);
 
-  if (GAME_ACTIONS.includes(input.action as GameAction)) {
-    const action = input.action as GameAction;
+  if (GAME_ACTIONS.includes(action as GameAction)) {
     let totalQuestions = session.totalQuestions;
     
     if (action === "START_GAME" && session.phase === "LOBBY") {
       totalQuestions = await buildSnapshot(session.id);
     }
 
-    const next = resolveAction(action, session.phase, session.currentQuestionIndex, totalQuestions);
+    const next = resolveAction(action as GameAction, session.phase, session.currentQuestionIndex, totalQuestions);
     if (!next) throw new GameError("INVALID_TRANSITION", "הפעולה אינה אפשרית במצב הנוכחי.");
 
     const patch: any = {
@@ -248,7 +269,7 @@ export async function hostCommandImpl(input: { sessionId: string; hostSecret: st
     }
   }
 
-  switch (input.action) {
+  switch (action) {
     case "RESET": {
       // In Firestore, deleting all answers and players requires fetching their refs first
       const sRef = adminDb.collection("sessions").doc(session.id);
@@ -294,14 +315,14 @@ export async function hostCommandImpl(input: { sessionId: string; hostSecret: st
       return { ok: true };
     }
     case "ADD_BOTS": {
-      const count = Math.min(Math.max(input.count ?? 10, 1), 100);
+      const botCount = Math.min(Math.max(count ?? 10, 1), 100);
       const playersSnap = await adminDb.collection(`sessions/${session.id}/players`).get();
       const taken = new Set(playersSnap.docs.map(d => d.data().normalizedName));
       
       const batch = adminDb.batch();
       let n = 1;
       let added = 0;
-      while (added < count && n < count * 40) {
+      while (added < botCount && n < botCount * 40) {
         const base = BOT_FIRST_NAMES[n % BOT_FIRST_NAMES.length]!;
         const name = `${base} (סימולציה ${n})`;
         n++;
@@ -470,8 +491,8 @@ export async function playerStateImpl(input: { sessionId: string; playerId: stri
   };
 }
 
-export async function questionTickImpl(input: { sessionId: string; hostSecret: string }) {
-  const session = await assertHost(input.sessionId, input.hostSecret);
+export async function questionTickImpl(sessionId: string) {
+  const session = await loadSession(sessionId);
   const questionId = session.currentQuestionIndex;
   if (questionId < 1 || questionId > session.totalQuestions) return { answered: 0, total: 0 };
 

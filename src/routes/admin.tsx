@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { auth, googleProvider } from "@/integrations/firebase/client";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { toast } from "sonner";
 
-import { hostCommand } from "@/lib/game.functions";
+import { hostCommand, questionTick } from "@/lib/game.functions";
 
 import {
   adminCreateGame,
@@ -28,14 +28,13 @@ import {
   adminListAuthorizedAdmins,
 } from "@/lib/admin.functions";
 import {
-  hostStorage,
+  useActiveGame,
   useCountdown,
   useHydrated,
   useLivePlayers,
   useLiveSession,
   useServerClock,
   useSessionQuestions,
-  type HostIdentity,
 } from "@/lib/use-game";
 import {
   ANSWER_IDS,
@@ -84,15 +83,15 @@ function AdminPage() {
   const [busy, setBusy] = useState(false);
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
-  const [game, setGame] = useState<HostIdentity | null>(null);
+  const active = useActiveGame();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [defaultDuration, setDefaultDuration] = useState(30);
 
   // ------------------------------------------------ live control of the game
   const now = useServerClock();
-  const { session } = useLiveSession(game?.sessionId ?? null);
-  const players = useLivePlayers(game?.sessionId ?? null);
-  const sessionQuestions = useSessionQuestions(game?.sessionId ?? null);
+  const { session } = useLiveSession(active?.sessionId ?? null);
+  const players = useLivePlayers(active?.sessionId ?? null);
+  const sessionQuestions = useSessionQuestions(active?.sessionId ?? null);
   const questionIndex = session?.current_question_index ?? 0;
   const totalLive = session?.total_questions ?? sessionQuestions.length;
   const liveQuestion = sessionQuestions.find((q) => q.id === questionIndex) ?? null;
@@ -104,7 +103,6 @@ function AdminPage() {
 
   // Listen for Firebase Auth state changes
   useEffect(() => {
-    setGame(hostStorage.get());
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       // The live-game hooks sign the operator in anonymously so client-side
       // Firestore reads work; that is NOT an admin login. Only verify real
@@ -204,25 +202,54 @@ function AdminPage() {
 
   const run = useCallback(
     async (action: HostControlAction, count?: number) => {
-      const host = game;
-      if (!host) return;
+      if (!token) return;
       setBusy(true);
       try {
-        await hostCommand({
-          data: { sessionId: host.sessionId, hostSecret: host.hostSecret, action, count },
-        });
-        if (action === "DELETE") {
-          hostStorage.clear();
-          setGame(null);
-        }
+        await hostCommand({ data: { token, action, count } });
+        // On "DELETE" the active game just ends server-side; useActiveGame
+        // picks up the change from Firestore automatically — no local state to clear.
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "הפעולה נכשלה.");
       } finally {
         setBusy(false);
       }
     },
-    [game],
+    [token],
   );
+
+  // -------------------------------------------------- progression driving
+  // The admin console now drives question progression (bot answers + the
+  // authoritative auto-lock at zero seconds) instead of /present, since
+  // /present is purely a read-only display any device can open.
+  const tick = useCallback(async () => {
+    if (!token) return;
+    try {
+      await questionTick({ data: { token } });
+    } catch {
+      /* transient */
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !active || session?.phase !== "QUESTION_ACTIVE") return;
+    const id = setInterval(() => void tick(), 1000);
+    return () => clearInterval(id);
+  }, [token, active, session?.phase, tick]);
+
+  // The timer is authoritative: when it hits zero the question locks itself.
+  // This is an automatic action, and multiple operators may run it at once, so
+  // it goes straight to the server and swallows errors (e.g. another console
+  // already locked → INVALID_TRANSITION) instead of surfacing a red toast.
+  const autoLocked = useRef(0);
+  useEffect(() => {
+    if (!token || !active) return;
+    if (session?.phase !== "QUESTION_ACTIVE" || seconds > 0) return;
+    if (autoLocked.current === questionIndex) return;
+    autoLocked.current = questionIndex;
+    hostCommand({ data: { token, action: "LOCK" } }).catch(() => {
+      /* already locked (by the timer elsewhere) — ignore */
+    });
+  }, [token, active, seconds, session?.phase, questionIndex]);
 
   const load = async (code: string) => {
     const [list, settings] = await Promise.all([
@@ -459,13 +486,7 @@ function AdminPage() {
     setBusy(true);
     try {
       const created = await adminCreateGame({ data: { token } });
-      const identity: HostIdentity = {
-        sessionId: created.sessionId,
-        pin: created.pin,
-        hostSecret: created.hostSecret,
-      };
-      hostStorage.set(identity);
-      setGame(identity);
+      // useActiveGame picks up the new session from Firestore automatically.
       toast.success(`נפתח משחק עם קוד ${created.pin}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "פתיחת המשחק נכשלה.");
@@ -550,10 +571,10 @@ function AdminPage() {
           >
             פתיחת משחק חדש
           </button>
-          {game && (
+          {active && (
             <>
               <span className="tabular rounded-xl bg-primary px-4 py-2 text-lg font-black text-primary-foreground" dir="ltr">
-                {game.pin}
+                {active.pin}
               </span>
               <a
                 href="/present"
@@ -568,7 +589,7 @@ function AdminPage() {
         </div>
       </section>
 
-      {game && (
+      {active && (
         <section className="surface-card mb-6 space-y-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-bold">שליטה במשחק החי</h2>

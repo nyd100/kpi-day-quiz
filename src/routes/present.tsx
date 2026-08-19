@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 import { AnswerTile } from "@/components/quiz/answer-tile";
@@ -9,10 +8,9 @@ import { Countdown } from "@/components/quiz/countdown";
 import { LeaderboardList, Podium } from "@/components/quiz/leaderboard";
 import { ParticipationStrip } from "@/components/quiz/participation-strip";
 import { ResultsBars } from "@/components/quiz/results-bars";
-import { hostCommand, questionTick, verifyHost } from "@/lib/game.functions";
 import { disableSound, enableSound, isSoundEnabled, playCue } from "@/lib/sound";
 import {
-  hostStorage,
+  useActiveGame,
   useAppSetting,
   useCountdown,
   useHydrated,
@@ -21,15 +19,8 @@ import {
   useQuestionAnswers,
   useServerClock,
   useSessionQuestions,
-  type HostIdentity,
 } from "@/lib/use-game";
-import {
-  CATEGORY_LABEL,
-  computeStatistics,
-  
-  type AnswerId,
-  type GameAction,
-} from "@/lib/quiz";
+import { CATEGORY_LABEL, computeStatistics, type AnswerId } from "@/lib/quiz";
 
 export const Route = createFileRoute("/present")({
   head: () => ({
@@ -48,31 +39,14 @@ export const Route = createFileRoute("/present")({
 
 function PresentPage() {
   const hydrated = useHydrated();
-  const [host, setHost] = useState<HostIdentity | null>(null);
-  const [checked, setChecked] = useState(false);
-  const [, setBusy] = useState(false);
+  const active = useActiveGame();
   const [sound, setSound] = useState(false);
 
   const now = useServerClock();
-  const { session, connection } = useLiveSession(host?.sessionId ?? null);
-  const questions = useSessionQuestions(host?.sessionId ?? null);
-  const players = useLivePlayers(host?.sessionId ?? null);
+  const { session, connection } = useLiveSession(active?.sessionId ?? null);
+  const questions = useSessionQuestions(active?.sessionId ?? null);
+  const players = useLivePlayers(active?.sessionId ?? null);
   const logoUrl = useAppSetting("org_logo_url");
-
-  useEffect(() => {
-    const stored = hostStorage.get();
-    if (!stored) {
-      setChecked(true);
-      return;
-    }
-    void verifyHost({ data: { sessionId: stored.sessionId, hostSecret: stored.hostSecret } })
-      .then((res) => {
-        if (res.ok) setHost(stored);
-        else hostStorage.clear();
-      })
-      .catch(() => hostStorage.clear())
-      .finally(() => setChecked(true));
-  }, []);
 
   const questionIndex = session?.current_question_index ?? 0;
   const totalQuestions = session?.total_questions ?? questions.length;
@@ -82,7 +56,7 @@ function PresentPage() {
   );
 
   const answers = useQuestionAnswers(
-    host?.sessionId ?? null,
+    active?.sessionId ?? null,
     questionIndex,
     session?.phase === "QUESTION_ACTIVE" || session?.phase === "SHOW_RESULTS" || session?.phase === "QUESTION_LOCKED",
   );
@@ -153,64 +127,9 @@ function PresentPage() {
     if (ok) playCue("questionStart");
   };
 
-  const tick = useCallback(async () => {
-    if (!host) return;
-    try {
-      await questionTick({ data: { sessionId: host.sessionId, hostSecret: host.hostSecret } });
-    } catch {
-      /* transient */
-    }
-  }, [host]);
+  if (!hydrated) return null;
 
-  useEffect(() => {
-    if (!host || session?.phase !== "QUESTION_ACTIVE") return;
-    const id = setInterval(() => void tick(), 1000);
-    return () => clearInterval(id);
-  }, [host, session?.phase, tick]);
-
-  const run = useCallback(
-    async (
-      action:
-        | GameAction
-        | "RESET"
-        | "DELETE"
-        | "ADD_BOTS"
-        | "CLEAR_BOTS"
-        | "TOGGLE_LATE_JOIN",
-      count?: number,
-    ) => {
-      if (!host) return;
-      setBusy(true);
-      try {
-        await hostCommand({
-          data: { sessionId: host.sessionId, hostSecret: host.hostSecret, action, count },
-        });
-        if (action === "DELETE") {
-          hostStorage.clear();
-          setHost(null);
-        }
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "הפעולה נכשלה.");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [host],
-  );
-
-  // The timer is authoritative: when it hits zero the question locks itself.
-  const autoLocked = useRef(0);
-  useEffect(() => {
-    if (session?.phase !== "QUESTION_ACTIVE" || seconds > 0) return;
-    if (autoLocked.current === questionIndex) return;
-    autoLocked.current = questionIndex;
-    void run("LOCK");
-  }, [seconds, session?.phase, questionIndex, run]);
-
-  if (!hydrated || !checked) return null;
-
-
-  if (!host) {
+  if (!active) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
         <h1 className="text-4xl font-black">
@@ -234,7 +153,7 @@ function PresentPage() {
     : null;
 
   const joinUrl =
-    typeof window !== "undefined" ? `${window.location.origin}/?pin=${host.pin}` : "";
+    typeof window !== "undefined" ? `${window.location.origin}/?pin=${active.pin}` : "";
 
   return (
     <main className="mx-auto flex min-h-screen w-[96vw] max-w-[1920px] flex-col gap-6 py-6">
@@ -260,7 +179,7 @@ function PresentPage() {
           <span className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
             קוד הצטרפות:{" "}
             <span className="tabular text-xl font-black" dir="ltr">
-              {host.pin}
+              {active.pin}
             </span>
           </span>
         </div>
@@ -279,7 +198,7 @@ function PresentPage() {
               </div>
             )}
             <p className="tabular text-8xl font-black tracking-[0.2em] text-gradient-accent" dir="ltr">
-              {host.pin}
+              {active.pin}
             </p>
           </div>
           <p className="text-muted-foreground">{players.length} משתתפים מחוברים</p>
