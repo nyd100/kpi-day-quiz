@@ -1,5 +1,6 @@
 // Server-only game engine. Never imported by client code directly.
 import { adminDb } from "@/integrations/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 import {
   computeScore,
   resolveAction,
@@ -220,21 +221,30 @@ export async function hostCommandImpl(sessionId: string, action: HostAction, cou
   const session = await loadSession(sessionId);
 
   if (GAME_ACTIONS.includes(action as GameAction)) {
+    const noop = { phase: session.phase, questionIndex: session.currentQuestionIndex, noop: true };
+
+    // START_GAME only makes sense from LOBBY; a repeat (another operator already
+    // started) is a benign no-op, not an error — and must NOT rebuild the snapshot.
+    if (action === "START_GAME" && session.phase !== "LOBBY") return noop;
+
     let totalQuestions = session.totalQuestions;
-    
     if (action === "START_GAME" && session.phase === "LOBBY") {
       totalQuestions = await buildSnapshot(session.id);
     }
 
     const next = resolveAction(action as GameAction, session.phase, session.currentQuestionIndex, totalQuestions);
-    if (!next) throw new GameError("INVALID_TRANSITION", "הפעולה אינה אפשרית במצב הנוכחי.");
+    // Illegal for the current phase almost always means another device already
+    // advanced the game (multi-operator / auto-lock). Return a benign no-op so the
+    // operator never sees a red "not possible in current state" toast — the live
+    // Firestore state shows them the real, current step to click next.
+    if (!next) return noop;
 
     const patch: any = {
       phase: next.phase,
       currentQuestionIndex: next.questionIndex,
       updatedAt: new Date().toISOString(),
     };
-    
+
     if (action === "START_GAME") patch.totalQuestions = totalQuestions;
     if (next.phase === "QUESTION_INTRO") {
       patch.questionStartedAt = null;
@@ -252,21 +262,25 @@ export async function hostCommandImpl(sessionId: string, action: HostAction, cou
       patch.revealedAnswerId = await loadKey(session.id, next.questionIndex);
     }
 
-    // Atomic phase progression to prevent double clicks
-    try {
-      await adminDb.runTransaction(async (t) => {
+    // Apply atomically, but only if the state hasn't moved under us. If a
+    // concurrent operator or the auto-lock already advanced it, we no-op instead
+    // of erroring — the patch we computed is only valid for the phase we read.
+    const applied = await adminDb
+      .runTransaction(async (t) => {
         const snap = await t.get(adminDb.collection("sessions").doc(session.id));
-        const data = snap.data()!;
+        const data = snap.data();
+        if (!data || data.status !== "ACTIVE") return false;
         if (data.phase !== session.phase || data.currentQuestionIndex !== session.currentQuestionIndex) {
-          throw new GameError("CONFLICT", "המצב כבר עודכן.");
+          return false;
         }
         t.update(snap.ref, patch);
+        return true;
+      })
+      .catch((error: any) => {
+        throw new GameError("DB_ERROR", error?.message ?? "שגיאת מסד נתונים.");
       });
-      return { phase: next.phase, questionIndex: next.questionIndex };
-    } catch (error: any) {
-      if (error instanceof GameError) throw error;
-      throw new GameError("DB_ERROR", error.message);
-    }
+
+    return applied ? { phase: next.phase, questionIndex: next.questionIndex } : noop;
   }
 
   switch (action) {
@@ -510,47 +524,75 @@ export async function questionTickImpl(sessionId: string) {
     const answersSnap = await adminDb.collection(`sessions/${session.id}/answers`).where("questionId", "==", questionId).get();
     const answered = new Set(answersSnap.docs.map(a => a.data().playerId));
 
-    const bots = all.filter((p) => p.isVirtual && !answered.has(p.id));
-    for (const bot of bots) {
-      const rWill = seeded(`${bot.id}:${questionId}:will`);
-      if (rWill > 0.94) continue; 
-      const plannedMs = Math.floor(durationMs * (0.2 + seeded(`${bot.id}:${questionId}:time`) * 0.7));
-      if (plannedMs > elapsed) continue;
+    const plannedFor = (botId: string) =>
+      Math.floor(durationMs * (0.2 + seeded(`${botId}:${questionId}:time`) * 0.7));
+
+    // Bots whose planned answer time has arrived and who haven't answered yet.
+    const dueBots = all.filter(
+      (p) =>
+        p.isVirtual &&
+        !answered.has(p.id) &&
+        seeded(`${p.id}:${questionId}:will`) <= 0.94 &&
+        plannedFor(p.id) <= elapsed,
+    );
+
+    // Write all due bots in one batch (chunked to Firestore's 500-op limit)
+    // instead of a transaction per bot — with up to 100 simulated players the
+    // old per-bot loop meant dozens of sequential round-trips per tick, which
+    // stalled the whole console. `batch.create` makes each answer write fail if
+    // the doc already exists, so overlapping ticks (or multiple operators) can
+    // never double-count a bot: the whole conflicting batch is rejected atomically.
+    let batch = adminDb.batch();
+    let ops = 0;
+    for (const bot of dueBots) {
+      const plannedMs = plannedFor(bot.id);
       const correct = seeded(`${bot.id}:${questionId}:acc`) < 0.7;
       const options: AnswerId[] = ["A", "B", "C", "D"];
       const wrongOptions = options.filter((o) => o !== key);
       const chosen = correct ? key : wrongOptions[Math.floor(seeded(`${bot.id}:${questionId}:pick`) * wrongOptions.length)]!;
-      
-      const answerRefId = `${questionId}_${bot.id}`;
       const isCorrect = chosen === key;
       const remainingMs = Math.max(0, endsAt - (startedAt + plannedMs));
       const score = computeScore(isCorrect, remainingMs, question.durationSeconds, question.scoringMode);
-      
-      try {
-        await adminDb.runTransaction(async (t) => {
-          const ansRef = adminDb.collection(`sessions/${session.id}/answers`).doc(answerRefId);
-          const pRef = adminDb.collection(`sessions/${session.id}/players`).doc(bot.id);
-          const e = await t.get(ansRef);
-          if (e.exists) return;
-          const pData = (await t.get(pRef)).data()!;
-          // See submitAnswerImpl: correctness/score stay off the client-readable
-          // answer doc so the right answer can't leak mid-question.
-          t.set(ansRef, {
-            playerId: bot.id,
-            questionId,
-            answerId: chosen,
-            responseMs: plannedMs,
-            submittedAt: new Date().toISOString(),
-          });
-          t.update(pRef, {
-            totalScore: pData.totalScore + score,
-            correctCount: pData.correctCount + (isCorrect ? 1 : 0),
-            cumulativeResponseMs: pData.cumulativeResponseMs + plannedMs,
-          });
-        });
-      } catch (err) {
-        // ignore bot race conditions
+
+      const ansRef = adminDb.collection(`sessions/${session.id}/answers`).doc(`${questionId}_${bot.id}`);
+      const pRef = adminDb.collection(`sessions/${session.id}/players`).doc(bot.id);
+      // See submitAnswerImpl: correctness/score stay off the client-readable
+      // answer doc so the right answer can't leak mid-question.
+      batch.create(ansRef, {
+        playerId: bot.id,
+        questionId,
+        answerId: chosen,
+        responseMs: plannedMs,
+        submittedAt: new Date().toISOString(),
+      });
+      batch.update(pRef, {
+        totalScore: FieldValue.increment(score),
+        correctCount: FieldValue.increment(isCorrect ? 1 : 0),
+        cumulativeResponseMs: FieldValue.increment(plannedMs),
+      });
+      ops += 2;
+      if (ops >= 400) {
+        await batch.commit().catch(() => { /* a concurrent tick won this chunk */ });
+        batch = adminDb.batch();
+        ops = 0;
       }
+    }
+    if (ops > 0) await batch.commit().catch(() => { /* a concurrent tick won this batch */ });
+
+    // Server-authoritative auto-lock: once the timer is up, advance to LOCKED
+    // here rather than relying on any single operator's countdown. Idempotent —
+    // only fires while the session is still ACTIVE on this exact question.
+    if (Date.now() > endsAt + 300) {
+      await adminDb
+        .runTransaction(async (t) => {
+          const ref = adminDb.collection("sessions").doc(session.id);
+          const snap = await t.get(ref);
+          const data = snap.data();
+          if (data && data.phase === "QUESTION_ACTIVE" && data.currentQuestionIndex === questionId) {
+            t.update(ref, { phase: "QUESTION_LOCKED", updatedAt: new Date().toISOString() });
+          }
+        })
+        .catch(() => { /* another tick locked first — fine */ });
     }
   }
 

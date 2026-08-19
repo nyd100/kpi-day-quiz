@@ -241,14 +241,6 @@ function PresentPage() {
             </div>
           )}
 
-          {session.phase === "QUESTION_INTRO" && (
-            <div className="flex flex-1 items-center justify-center">
-              <p className="text-lg text-muted-foreground">
-                התשובות יופיעו כשהמנחה ילחץ להמשך
-              </p>
-            </div>
-          )}
-
           {session.phase === "QUESTION_ACTIVE" && (
             <div className="mt-auto pt-4">
               <ParticipationStrip answers={answers} players={players} />

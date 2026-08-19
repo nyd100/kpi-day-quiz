@@ -205,7 +205,10 @@ function AdminPage() {
       if (!token) return;
       setBusy(true);
       try {
-        await hostCommand({ data: { token, action, count } });
+        // Pass the sessionId the device already discovered so the server skips a
+        // redundant active-game lookup on every click (lower latency → the big
+        // screen and phones reflect the command sooner).
+        await hostCommand({ data: { token, sessionId: active?.sessionId, action, count } });
         // On "DELETE" the active game just ends server-side; useActiveGame
         // picks up the change from Firestore automatically — no local state to clear.
       } catch (error) {
@@ -214,42 +217,31 @@ function AdminPage() {
         setBusy(false);
       }
     },
-    [token],
+    [token, active?.sessionId],
   );
 
   // -------------------------------------------------- progression driving
-  // The admin console now drives question progression (bot answers + the
-  // authoritative auto-lock at zero seconds) instead of /present, since
-  // /present is purely a read-only display any device can open.
+  // While a question is live the console pings the server each second to let
+  // simulated players answer and to trigger the server-authoritative auto-lock
+  // when the timer runs out. /present is a pure read-only display and never ticks.
+  const tickInFlight = useRef(false);
   const tick = useCallback(async () => {
-    if (!token) return;
+    if (!token || tickInFlight.current) return; // never overlap ticks
+    tickInFlight.current = true;
     try {
-      await questionTick({ data: { token } });
+      await questionTick({ data: { token, sessionId: active?.sessionId } });
     } catch {
       /* transient */
+    } finally {
+      tickInFlight.current = false;
     }
-  }, [token]);
+  }, [token, active?.sessionId]);
 
   useEffect(() => {
     if (!token || !active || session?.phase !== "QUESTION_ACTIVE") return;
     const id = setInterval(() => void tick(), 1000);
     return () => clearInterval(id);
   }, [token, active, session?.phase, tick]);
-
-  // The timer is authoritative: when it hits zero the question locks itself.
-  // This is an automatic action, and multiple operators may run it at once, so
-  // it goes straight to the server and swallows errors (e.g. another console
-  // already locked → INVALID_TRANSITION) instead of surfacing a red toast.
-  const autoLocked = useRef(0);
-  useEffect(() => {
-    if (!token || !active) return;
-    if (session?.phase !== "QUESTION_ACTIVE" || seconds > 0) return;
-    if (autoLocked.current === questionIndex) return;
-    autoLocked.current = questionIndex;
-    hostCommand({ data: { token, action: "LOCK" } }).catch(() => {
-      /* already locked (by the timer elsewhere) — ignore */
-    });
-  }, [token, active, seconds, session?.phase, questionIndex]);
 
   const load = async (code: string) => {
     const [list, settings] = await Promise.all([

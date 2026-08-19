@@ -141,7 +141,7 @@ function JoinPage() {
         </form>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          המתינו להוראות המנחה על המסך הגדול.
+          פותח ע״י אגף נתונים ובינה מלאכותית
         </p>
       </div>
     </main>

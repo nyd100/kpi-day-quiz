@@ -16,6 +16,11 @@ export const hostCommand = createServerFn({ method: "POST" })
     z
       .object({
         token: z.string().min(1),
+        // The operating device already knows the active sessionId (from the
+        // shared Firestore ACTIVE query); passing it lets the server skip a
+        // redundant lookup query on every click. Falls back to a lookup when
+        // absent so older clients still work.
+        sessionId: uuid.optional(),
         action: z.enum([
           "START_GAME",
           "START_QUESTION",
@@ -39,24 +44,34 @@ export const hostCommand = createServerFn({ method: "POST" })
     const { hostCommandImpl, getActiveGameImpl, GameError } = await import("./game.server");
     try {
       await assertAdmin(data.token);
-      const active = await getActiveGameImpl();
-      if (!active) throw new GameError("NO_GAME", "אין משחק פעיל.");
-      return await hostCommandImpl(active.sessionId, data.action, data.count);
+      let sessionId = data.sessionId;
+      if (!sessionId) {
+        const active = await getActiveGameImpl();
+        if (!active) throw new GameError("NO_GAME", "אין משחק פעיל.");
+        sessionId = active.sessionId;
+      }
+      return await hostCommandImpl(sessionId, data.action, data.count);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "הפעולה נכשלה.");
     }
   });
 
 export const questionTick = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ token: z.string().min(1) }).parse(data))
+  .inputValidator((data: unknown) =>
+    z.object({ token: z.string().min(1), sessionId: uuid.optional() }).parse(data),
+  )
   .handler(async ({ data }) => {
     const { assertAdmin } = await import("./admin.server");
     const { questionTickImpl, getActiveGameImpl, GameError } = await import("./game.server");
     try {
       await assertAdmin(data.token);
-      const active = await getActiveGameImpl();
-      if (!active) return { answered: 0, total: 0 };
-      return await questionTickImpl(active.sessionId);
+      let sessionId = data.sessionId;
+      if (!sessionId) {
+        const active = await getActiveGameImpl();
+        if (!active) return { answered: 0, total: 0 };
+        sessionId = active.sessionId;
+      }
+      return await questionTickImpl(sessionId);
     } catch (error) {
       throw new Error(error instanceof GameError ? error.message : "עדכון המצב נכשל.");
     }
