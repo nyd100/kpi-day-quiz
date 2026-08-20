@@ -203,9 +203,21 @@ function PlayPage() {
         <Panel>
           <p className="text-sm font-semibold text-primary">
             שאלה {questionIndex} מתוך {session?.total_questions ?? questions.length}
+            {question && ` · ${CATEGORY_LABEL[question.category]}`}
           </p>
-          <h1 className="mt-2 text-3xl font-black">מתכוננים...</h1>
-          <p className="mt-2 text-muted-foreground">השאלה תופיע כאן ברגע שהמנחה יתחיל</p>
+          {question ? (
+            // Show the question in sync with the big screen; the answer options
+            // only appear once the host reveals them (QUESTION_ACTIVE).
+            <>
+              <h1 className="mt-3 text-2xl font-black leading-snug">{question.title}</h1>
+              {question.subtitle && (
+                <p className="mt-2 text-sm text-muted-foreground">{question.subtitle}</p>
+              )}
+              <p className="mt-6 text-sm text-muted-foreground">האפשרויות יופיעו כאן כשהמנחה יחשוף אותן</p>
+            </>
+          ) : (
+            <h1 className="mt-2 text-3xl font-black">מתכוננים...</h1>
+          )}
         </Panel>
       )}
 
