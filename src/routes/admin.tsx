@@ -74,6 +74,13 @@ type AdminQuestion = Awaited<ReturnType<typeof adminListQuestions>>[number];
 function AdminPage() {
   const hydrated = useHydrated();
   const [token, setToken] = useState("");
+  const freshToken = useCallback(async () => {
+    try {
+      return (await auth.currentUser?.getIdToken()) ?? token;
+    } catch {
+      return token;
+    }
+  }, [token]);
   const [authed, setAuthed] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -132,8 +139,10 @@ function AdminPage() {
             await signOut(auth);
           }
         } catch (error) {
+          // A transient network/server error must NOT log an operator out mid-game.
+          // Keep whatever authed state we already had and let the next auth event or
+          // command retry; only an explicit non-authorized result (handled above) signs out.
           console.error("Auth verification failed:", error);
-          await signOut(auth);
         }
       } else {
         setToken("");
@@ -208,7 +217,8 @@ function AdminPage() {
         // Pass the sessionId the device already discovered so the server skips a
         // redundant active-game lookup on every click (lower latency → the big
         // screen and phones reflect the command sooner).
-        await hostCommand({ data: { token, sessionId: active?.sessionId, action, count } });
+        const t = await freshToken();
+        await hostCommand({ data: { token: t, sessionId: active?.sessionId, action, count } });
         // On "DELETE" the active game just ends server-side; useActiveGame
         // picks up the change from Firestore automatically — no local state to clear.
       } catch (error) {
@@ -217,7 +227,7 @@ function AdminPage() {
         setBusy(false);
       }
     },
-    [token, active?.sessionId],
+    [token, active?.sessionId, freshToken],
   );
 
   // -------------------------------------------------- progression driving
@@ -229,16 +239,18 @@ function AdminPage() {
     if (!token || tickInFlight.current) return; // never overlap ticks
     tickInFlight.current = true;
     try {
-      await questionTick({ data: { token, sessionId: active?.sessionId } });
+      const t = await freshToken();
+      await questionTick({ data: { token: t, sessionId: active?.sessionId } });
     } catch {
       /* transient */
     } finally {
       tickInFlight.current = false;
     }
-  }, [token, active?.sessionId]);
+  }, [token, active?.sessionId, freshToken]);
 
   useEffect(() => {
-    if (!token || !active || session?.phase !== "QUESTION_ACTIVE") return;
+    if (!token || !active) return;
+    if (session?.phase !== "QUESTION_ACTIVE" && session?.phase !== "QUESTION_LOCKED") return;
     const id = setInterval(() => void tick(), 1000);
     return () => clearInterval(id);
   }, [token, active, session?.phase, tick]);

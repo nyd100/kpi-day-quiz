@@ -513,86 +513,102 @@ export async function questionTickImpl(sessionId: string) {
   const playersSnap = await adminDb.collection(`sessions/${session.id}/players`).get();
   const all = playersSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
 
-  if (session.phase === "QUESTION_ACTIVE" && session.questionStartedAt) {
+  const isActive = session.phase === "QUESTION_ACTIVE";
+  const isLocked = session.phase === "QUESTION_LOCKED";
+
+  if ((isActive || isLocked) && session.questionStartedAt) {
     const question = await loadQuestion(session.id, questionId);
     const key = await loadKey(session.id, questionId);
     const durationMs = question.durationSeconds * 1000;
     const startedAt = new Date(session.questionStartedAt).getTime();
     const endsAt = session.questionEndsAt ? new Date(session.questionEndsAt).getTime() : startedAt + durationMs;
-    const elapsed = Date.now() - startedAt;
+    const now = Date.now();
+    const elapsed = now - startedAt;
 
-    const answersSnap = await adminDb.collection(`sessions/${session.id}/answers`).where("questionId", "==", questionId).get();
-    const answered = new Set(answersSnap.docs.map(a => a.data().playerId));
+    if (isActive) {
+      const answersSnap = await adminDb.collection(`sessions/${session.id}/answers`).where("questionId", "==", questionId).get();
+      const answered = new Set(answersSnap.docs.map(a => a.data().playerId));
 
-    const plannedFor = (botId: string) =>
-      Math.floor(durationMs * (0.2 + seeded(`${botId}:${questionId}:time`) * 0.7));
+      const plannedFor = (botId: string) =>
+        Math.floor(durationMs * (0.2 + seeded(`${botId}:${questionId}:time`) * 0.7));
 
-    // Bots whose planned answer time has arrived and who haven't answered yet.
-    const dueBots = all.filter(
-      (p) =>
-        p.isVirtual &&
-        !answered.has(p.id) &&
-        seeded(`${p.id}:${questionId}:will`) <= 0.94 &&
-        plannedFor(p.id) <= elapsed,
-    );
+      // Bots whose planned answer time has arrived and who haven't answered yet.
+      const dueBots = all.filter(
+        (p) =>
+          p.isVirtual &&
+          !answered.has(p.id) &&
+          seeded(`${p.id}:${questionId}:will`) <= 0.94 &&
+          plannedFor(p.id) <= elapsed,
+      );
 
-    // Write all due bots in one batch (chunked to Firestore's 500-op limit)
-    // instead of a transaction per bot — with up to 100 simulated players the
-    // old per-bot loop meant dozens of sequential round-trips per tick, which
-    // stalled the whole console. `batch.create` makes each answer write fail if
-    // the doc already exists, so overlapping ticks (or multiple operators) can
-    // never double-count a bot: the whole conflicting batch is rejected atomically.
-    let batch = adminDb.batch();
-    let ops = 0;
-    for (const bot of dueBots) {
-      const plannedMs = plannedFor(bot.id);
-      const correct = seeded(`${bot.id}:${questionId}:acc`) < 0.7;
-      const options: AnswerId[] = ["A", "B", "C", "D"];
-      const wrongOptions = options.filter((o) => o !== key);
-      const chosen = correct ? key : wrongOptions[Math.floor(seeded(`${bot.id}:${questionId}:pick`) * wrongOptions.length)]!;
-      const isCorrect = chosen === key;
-      const remainingMs = Math.max(0, endsAt - (startedAt + plannedMs));
-      const score = computeScore(isCorrect, remainingMs, question.durationSeconds, question.scoringMode);
+      // Write all due bots in one batch (chunked to Firestore's 500-op limit)
+      // instead of a transaction per bot — with up to 100 simulated players the
+      // old per-bot loop meant dozens of sequential round-trips per tick, which
+      // stalled the whole console. `batch.create` makes each answer write fail if
+      // the doc already exists, so overlapping ticks (or multiple operators) can
+      // never double-count a bot: the whole conflicting batch is rejected atomically.
+      let batch = adminDb.batch();
+      let ops = 0;
+      for (const bot of dueBots) {
+        const plannedMs = plannedFor(bot.id);
+        const correct = seeded(`${bot.id}:${questionId}:acc`) < 0.7;
+        const options: AnswerId[] = ["A", "B", "C", "D"];
+        const wrongOptions = options.filter((o) => o !== key);
+        const chosen = correct ? key : wrongOptions[Math.floor(seeded(`${bot.id}:${questionId}:pick`) * wrongOptions.length)]!;
+        const isCorrect = chosen === key;
+        const remainingMs = Math.max(0, endsAt - (startedAt + plannedMs));
+        const score = computeScore(isCorrect, remainingMs, question.durationSeconds, question.scoringMode);
 
-      const ansRef = adminDb.collection(`sessions/${session.id}/answers`).doc(`${questionId}_${bot.id}`);
-      const pRef = adminDb.collection(`sessions/${session.id}/players`).doc(bot.id);
-      // See submitAnswerImpl: correctness/score stay off the client-readable
-      // answer doc so the right answer can't leak mid-question.
-      batch.create(ansRef, {
-        playerId: bot.id,
-        questionId,
-        answerId: chosen,
-        responseMs: plannedMs,
-        submittedAt: new Date().toISOString(),
-      });
-      batch.update(pRef, {
-        totalScore: FieldValue.increment(score),
-        correctCount: FieldValue.increment(isCorrect ? 1 : 0),
-        cumulativeResponseMs: FieldValue.increment(plannedMs),
-      });
-      ops += 2;
-      if (ops >= 400) {
-        await batch.commit().catch(() => { /* a concurrent tick won this chunk */ });
-        batch = adminDb.batch();
-        ops = 0;
+        const ansRef = adminDb.collection(`sessions/${session.id}/answers`).doc(`${questionId}_${bot.id}`);
+        const pRef = adminDb.collection(`sessions/${session.id}/players`).doc(bot.id);
+        // See submitAnswerImpl: correctness/score stay off the client-readable
+        // answer doc so the right answer can't leak mid-question.
+        batch.create(ansRef, {
+          playerId: bot.id,
+          questionId,
+          answerId: chosen,
+          responseMs: plannedMs,
+          submittedAt: new Date().toISOString(),
+        });
+        batch.update(pRef, {
+          totalScore: FieldValue.increment(score),
+          correctCount: FieldValue.increment(isCorrect ? 1 : 0),
+          cumulativeResponseMs: FieldValue.increment(plannedMs),
+        });
+        ops += 2;
+        if (ops >= 400) {
+          await batch.commit().catch(() => { /* a concurrent tick won this chunk */ });
+          batch = adminDb.batch();
+          ops = 0;
+        }
       }
+      if (ops > 0) await batch.commit().catch(() => { /* a concurrent tick won this batch */ });
     }
-    if (ops > 0) await batch.commit().catch(() => { /* a concurrent tick won this batch */ });
 
-    // Server-authoritative auto-lock: once the timer is up, advance to LOCKED
-    // here rather than relying on any single operator's countdown. Idempotent —
-    // only fires while the session is still ACTIVE on this exact question.
-    if (Date.now() > endsAt + 300) {
+    // Server-authoritative auto-progression (independent of any operator's
+    // countdown): at time-up LOCK the question; 3s later reveal the answer.
+    // Idempotent — each transition re-reads the session and only writes if the
+    // phase/question haven't already moved (e.g. a concurrent tick, or an
+    // operator's own click), so a race here is a silent no-op, not a conflict.
+    const sessionRef = adminDb.collection("sessions").doc(session.id);
+    const advance = async (fromPhase: string, patch: Record<string, unknown>) => {
       await adminDb
         .runTransaction(async (t) => {
-          const ref = adminDb.collection("sessions").doc(session.id);
-          const snap = await t.get(ref);
+          const snap = await t.get(sessionRef);
           const data = snap.data();
-          if (data && data.phase === "QUESTION_ACTIVE" && data.currentQuestionIndex === questionId) {
-            t.update(ref, { phase: "QUESTION_LOCKED", updatedAt: new Date().toISOString() });
+          if (data && data.phase === fromPhase && data.currentQuestionIndex === questionId) {
+            t.update(sessionRef, { ...patch, updatedAt: new Date().toISOString() });
           }
         })
-        .catch(() => { /* another tick locked first — fine */ });
+        .catch(() => { /* another tick/operator already advanced — fine */ });
+    };
+
+    if (isActive && now > endsAt + 3000) {
+      await advance("QUESTION_ACTIVE", { phase: "SHOW_RESULTS", revealedAnswerId: key });
+    } else if (isActive && now > endsAt) {
+      await advance("QUESTION_ACTIVE", { phase: "QUESTION_LOCKED" });
+    } else if (isLocked && now > endsAt + 3000) {
+      await advance("QUESTION_LOCKED", { phase: "SHOW_RESULTS", revealedAnswerId: key });
     }
   }
 

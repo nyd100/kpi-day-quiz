@@ -18,6 +18,48 @@ export function connectionLabel(state: ConnectionState) {
   return CONNECTION_LABEL[state];
 }
 
+/**
+ * Firestore's onSnapshot stops delivering updates permanently once its error
+ * callback fires (it does NOT auto-retry). For a live game that must stay in
+ * sync as long as the network is up, we tear down and re-subscribe on error
+ * with a short backoff. Returns a cleanup that stops retrying and detaches.
+ */
+function subscribeWithRetry(
+  makeRef: () => any,
+  onData: (snap: any) => void,
+  onStatus?: (s: ConnectionState) => void,
+): () => void {
+  let unsub: (() => void) | null = null;
+  let stopped = false;
+  let retry: ReturnType<typeof setTimeout> | null = null;
+
+  const attach = () => {
+    if (stopped) return;
+    onStatus?.("connecting");
+    unsub = onSnapshot(
+      makeRef(),
+      (snap: any) => {
+        onStatus?.("connected");
+        onData(snap);
+      },
+      () => {
+        onStatus?.("reconnecting");
+        if (unsub) { unsub(); unsub = null; }
+        if (!stopped && retry === null) {
+          retry = setTimeout(() => { retry = null; attach(); }, 1500);
+        }
+      },
+    );
+  };
+
+  attach();
+  return () => {
+    stopped = true;
+    if (retry !== null) clearTimeout(retry);
+    if (unsub) unsub();
+  };
+}
+
 /** Offset between backend clock and this device clock (ms). */
 export function useServerClock() {
   const [offset, setOffset] = useState(0);
@@ -63,27 +105,29 @@ export function useQuestions() {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   
   useEffect(() => {
-    const q = query(collection(db, "questions"), orderBy("orderIndex"));
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setQuestions(
-        snap.docs.map((d) => {
-          const qData = d.data();
-          return {
-            id: Number(d.id),
-            category: qData.category as QuizQuestion["category"],
-            pairId: qData.pairId,
-            title: qData.title,
-            subtitle: qData.subtitle,
-            answers: qData.answers,
-            durationSeconds: qData.durationSeconds,
-            scoringMode: qData.scoringMode as QuizQuestion["scoringMode"],
-            executiveInsight: qData.executiveInsight,
-            isPlaceholder: qData.isPlaceholder,
-            imageUrl: qData.imageUrl ?? null,
-          };
-        })
-      );
-    });
+    const unsubscribe = subscribeWithRetry(
+      () => query(collection(db, "questions"), orderBy("orderIndex")),
+      (snap) => {
+        setQuestions(
+          snap.docs.map((d: any) => {
+            const qData = d.data();
+            return {
+              id: Number(d.id),
+              category: qData.category as QuizQuestion["category"],
+              pairId: qData.pairId,
+              title: qData.title,
+              subtitle: qData.subtitle,
+              answers: qData.answers,
+              durationSeconds: qData.durationSeconds,
+              scoringMode: qData.scoringMode as QuizQuestion["scoringMode"],
+              executiveInsight: qData.executiveInsight,
+              isPlaceholder: qData.isPlaceholder,
+              imageUrl: qData.imageUrl ?? null,
+            };
+          })
+        );
+      },
+    );
     return () => unsubscribe();
   }, []);
   return questions;
@@ -109,18 +153,20 @@ export function useActiveGame() {
         return;
       }
       if (unsubSnap) return; // already listening
-      const q = query(collection(db, "sessions"), where("status", "==", "ACTIVE"));
-      unsubSnap = onSnapshot(q, (snap) => {
-        if (snap.empty) {
-          setActive(null);
-          return;
-        }
-        const docs = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }) as any)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        const newest = docs[0];
-        setActive({ sessionId: newest.id, pin: newest.pin });
-      });
+      unsubSnap = subscribeWithRetry(
+        () => query(collection(db, "sessions"), where("status", "==", "ACTIVE")),
+        (snap) => {
+          if (snap.empty) {
+            setActive(null);
+            return;
+          }
+          const docs = snap.docs
+            .map((d: any) => ({ id: d.id, ...d.data() }) as any)
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          const newest = docs[0];
+          setActive({ sessionId: newest.id, pin: newest.pin });
+        },
+      );
     });
 
     return () => {
@@ -162,30 +208,30 @@ export function useLiveSession(sessionId: string | null) {
 
   useEffect(() => {
     if (!sessionId) return;
-    setConnection("connecting");
 
-    const unsubscribe = onSnapshot(doc(db, "sessions", sessionId), (snap) => {
-      if (!snap.exists()) return;
-      const d = snap.data();
-      setSession({
-        id: snap.id,
-        title: d.title,
-        status: d.status,
-        phase: d.phase,
-        current_question_index: d.currentQuestionIndex,
-        question_started_at: d.questionStartedAt,
-        question_ends_at: d.questionEndsAt,
-        revealed_answer_id: d.revealedAnswerId,
-        allow_late_join: d.allowLateJoin,
-        created_at: d.createdAt,
-        expires_at: d.expiresAt,
-        updated_at: d.updatedAt,
-        total_questions: d.totalQuestions,
-      } as unknown as SessionRow);
-      setConnection("connected");
-    }, (error) => {
-      setConnection("reconnecting");
-    });
+    const unsubscribe = subscribeWithRetry(
+      () => doc(db, "sessions", sessionId),
+      (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data();
+        setSession({
+          id: snap.id,
+          title: d.title,
+          status: d.status,
+          phase: d.phase,
+          current_question_index: d.currentQuestionIndex,
+          question_started_at: d.questionStartedAt,
+          question_ends_at: d.questionEndsAt,
+          revealed_answer_id: d.revealedAnswerId,
+          allow_late_join: d.allowLateJoin,
+          created_at: d.createdAt,
+          expires_at: d.expiresAt,
+          updated_at: d.updatedAt,
+          total_questions: d.totalQuestions,
+        } as unknown as SessionRow);
+      },
+      setConnection,
+    );
 
     const onOnline = () => setConnection("reconnecting");
     const onOffline = () => setConnection("offline");
@@ -207,22 +253,24 @@ export function useLivePlayers(sessionId: string | null) {
 
   useEffect(() => {
     if (!sessionId) return;
-    const q = collection(db, `sessions/${sessionId}/players`);
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setPlayers(snap.docs.map(d => {
-        const p = d.data();
-        return {
-          id: d.id,
-          session_id: sessionId,
-          display_name: p.displayName,
-          total_score: p.totalScore,
-          correct_count: p.correctCount,
-          cumulative_response_ms: p.cumulativeResponseMs,
-          is_virtual: p.isVirtual,
-          joined_at: p.joinedAt,
-        } as unknown as PlayerRow;
-      }));
-    });
+    const unsubscribe = subscribeWithRetry(
+      () => collection(db, `sessions/${sessionId}/players`),
+      (snap) => {
+        setPlayers(snap.docs.map((d: any) => {
+          const p = d.data();
+          return {
+            id: d.id,
+            session_id: sessionId,
+            display_name: p.displayName,
+            total_score: p.totalScore,
+            correct_count: p.correctCount,
+            cumulative_response_ms: p.cumulativeResponseMs,
+            is_virtual: p.isVirtual,
+            joined_at: p.joinedAt,
+          } as unknown as PlayerRow;
+        }));
+      },
+    );
     return () => unsubscribe();
   }, [sessionId]);
 
@@ -238,22 +286,23 @@ export function useQuestionAnswers(sessionId: string | null, questionId: number,
       return;
     }
 
-    const q = query(
-      collection(db, `sessions/${sessionId}/answers`),
-      where("questionId", "==", questionId)
+    const unsubscribe = subscribeWithRetry(
+      () => query(
+        collection(db, `sessions/${sessionId}/answers`),
+        where("questionId", "==", questionId)
+      ),
+      (snap) => {
+        setAnswers(snap.docs.map((d: any) => {
+          const a = d.data();
+          return {
+            player_id: a.playerId,
+            question_id: a.questionId,
+            answer_id: a.answerId,
+            response_ms: a.responseMs,
+          } as unknown as AnswerRow;
+        }));
+      },
     );
-
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setAnswers(snap.docs.map(d => {
-        const a = d.data();
-        return {
-          player_id: a.playerId,
-          question_id: a.questionId,
-          answer_id: a.answerId,
-          response_ms: a.responseMs,
-        } as unknown as AnswerRow;
-      }));
-    });
     return () => unsubscribe();
   }, [sessionId, questionId, enabled]);
 
@@ -294,30 +343,32 @@ export function useSessionQuestions(sessionId: string | null) {
     // Once frozen for a session, questions don't change, so we can just use onSnapshot
     // or a single fetch with a periodic refresh if we don't want a permanent listener.
     // Since Firebase real-time listeners are cheap for unmodified data, let's use onSnapshot.
-    const q = query(collection(db, `sessions/${sessionId}/questions`), orderBy("position"));
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setQuestions(
-        snap.docs.map((d) => {
-          const qData = d.data();
-          return {
-            id: qData.position,
-            category: qData.category as QuizQuestion["category"],
-            pairId: qData.pairId,
-            title: qData.title,
-            subtitle: qData.subtitle,
-            answers: qData.answers,
-            durationSeconds: qData.durationSeconds,
-            scoringMode: qData.scoringMode as QuizQuestion["scoringMode"],
-            executiveInsight: qData.executiveInsight,
-            isPlaceholder: false,
-            imageUrl: qData.imageUrl ?? null,
-          };
-        })
-      );
-    });
+    const unsubscribe = subscribeWithRetry(
+      () => query(collection(db, `sessions/${sessionId}/questions`), orderBy("position")),
+      (snap) => {
+        setQuestions(
+          snap.docs.map((d: any) => {
+            const qData = d.data();
+            return {
+              id: qData.position,
+              category: qData.category as QuizQuestion["category"],
+              pairId: qData.pairId,
+              title: qData.title,
+              subtitle: qData.subtitle,
+              answers: qData.answers,
+              durationSeconds: qData.durationSeconds,
+              scoringMode: qData.scoringMode as QuizQuestion["scoringMode"],
+              executiveInsight: qData.executiveInsight,
+              isPlaceholder: false,
+              imageUrl: qData.imageUrl ?? null,
+            };
+          })
+        );
+      },
+    );
     return () => unsubscribe();
   }, [sessionId]);
-  
+
   return questions;
 }
 
@@ -325,14 +376,17 @@ export function useAppSetting(key: string) {
   const [value, setValue] = useState<string | null>(null);
   
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, "settings", "global"), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setValue(data[key] ?? null);
-      } else {
-        setValue(null);
-      }
-    });
+    const unsubscribe = subscribeWithRetry(
+      () => doc(db, "settings", "global"),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setValue(data[key] ?? null);
+        } else {
+          setValue(null);
+        }
+      },
+    );
     return () => unsubscribe();
   }, [key]);
   
