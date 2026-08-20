@@ -302,7 +302,7 @@ export async function hostCommandImpl(sessionId: string, action: HostAction, cou
       const batch = adminDb.batch();
       // Reset players score
       const players = await adminDb.collection(`sessions/${session.id}/players`).get();
-      players.docs.forEach(d => batch.update(d.ref, { totalScore: 0, correctCount: 0, cumulativeResponseMs: 0 }));
+      players.docs.forEach(d => batch.update(d.ref, { totalScore: 0, correctCount: 0, cumulativeResponseMs: 0, streak: 0, bestStreak: 0 }));
       
       // Delete answers
       const answers = await adminDb.collection(`sessions/${session.id}/answers`).get();
@@ -406,6 +406,8 @@ export async function joinGameImpl(input: { pin: string; displayName: string }) 
         totalScore: 0,
         correctCount: 0,
         cumulativeResponseMs: 0,
+        streak: 0,
+        bestStreak: 0,
         joinedAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
       });
@@ -451,7 +453,13 @@ export async function submitAnswerImpl(input: { sessionId: string; playerId: str
       
       const pSnap = await t.get(playerRef);
       const pData = pSnap.data()!;
-      
+
+      // Consecutive-correct streak (real players only): grows on a correct answer,
+      // resets to 0 on a wrong one, and awards a small escalating bonus.
+      const prevStreak = pData.streak ?? 0;
+      const newStreak = isCorrect ? prevStreak + 1 : 0;
+      const streakBonus = isCorrect ? Math.min(Math.max(newStreak - 1, 0), 4) * 25 : 0;
+
       // NOTE: isCorrect/awardedScore are intentionally NOT stored on the answer
       // doc — clients read this collection live during the active question, and
       // persisting correctness there would leak the right answer before reveal.
@@ -466,9 +474,11 @@ export async function submitAnswerImpl(input: { sessionId: string; playerId: str
       });
 
       t.update(playerRef, {
-        totalScore: pData.totalScore + score,
+        totalScore: pData.totalScore + score + streakBonus,
         correctCount: pData.correctCount + (isCorrect ? 1 : 0),
         cumulativeResponseMs: pData.cumulativeResponseMs + responseMs,
+        streak: newStreak,
+        bestStreak: Math.max(pData.bestStreak ?? 0, newStreak),
         lastSeenAt: new Date().toISOString(),
       });
       return true;
@@ -585,33 +595,58 @@ export async function questionTickImpl(sessionId: string) {
       if (ops > 0) await batch.commit().catch(() => { /* a concurrent tick won this batch */ });
     }
 
-    // Server-authoritative auto-progression (independent of any operator's
-    // countdown): at time-up LOCK the question; 3s later reveal the answer.
-    // Idempotent — each transition re-reads the session and only writes if the
-    // phase/question haven't already moved (e.g. a concurrent tick, or an
-    // operator's own click), so a race here is a silent no-op, not a conflict.
-    const sessionRef = adminDb.collection("sessions").doc(session.id);
-    const advance = async (fromPhase: string, patch: Record<string, unknown>) => {
-      await adminDb
-        .runTransaction(async (t) => {
-          const snap = await t.get(sessionRef);
-          const data = snap.data();
-          if (data && data.phase === fromPhase && data.currentQuestionIndex === questionId) {
-            t.update(sessionRef, { ...patch, updatedAt: new Date().toISOString() });
-          }
-        })
-        .catch(() => { /* another tick/operator already advanced — fine */ });
-    };
-
-    if (isActive && now > endsAt + 3000) {
-      await advance("QUESTION_ACTIVE", { phase: "SHOW_RESULTS", revealedAnswerId: key });
-    } else if (isActive && now > endsAt) {
-      await advance("QUESTION_ACTIVE", { phase: "QUESTION_LOCKED" });
-    } else if (isLocked && now > endsAt + 3000) {
-      await advance("QUESTION_LOCKED", { phase: "SHOW_RESULTS", revealedAnswerId: key });
-    }
+    // Time-based, idempotent phase advance (shared with the public autoAdvance
+    // that /present drives). Runs after bots so last-second bot answers count.
+    await autoAdvanceImpl(session.id);
   }
 
   const ansCountSnap = await adminDb.collection(`sessions/${session.id}/answers`).where("questionId", "==", questionId).count().get();
   return { answered: ansCountSnap.data().count, total: all.length };
+}
+
+// Time-based, idempotent phase advance for the active question. Safe to call
+// from anywhere (no bots, no arbitrary state changes): it only LOCKs at time-up
+// and reveals SHOW_RESULTS 3s later, and only while the session is still on that
+// exact ACTIVE/LOCKED question. Called by both questionTickImpl (admin console)
+// and the public autoAdvance server fn that the /present screen pings — so
+// progression no longer depends on any single operator's foreground browser tab.
+export async function autoAdvanceImpl(sessionId: string) {
+  const session = await loadSession(sessionId);
+  const questionId = session.currentQuestionIndex;
+  if (questionId < 1 || questionId > session.totalQuestions) return { phase: session.phase };
+
+  const isActive = session.phase === "QUESTION_ACTIVE";
+  const isLocked = session.phase === "QUESTION_LOCKED";
+  if ((!isActive && !isLocked) || !session.questionStartedAt) return { phase: session.phase };
+
+  const question = await loadQuestion(session.id, questionId);
+  const durationMs = question.durationSeconds * 1000;
+  const startedAt = new Date(session.questionStartedAt).getTime();
+  const endsAt = session.questionEndsAt ? new Date(session.questionEndsAt).getTime() : startedAt + durationMs;
+  const now = Date.now();
+
+  const sessionRef = adminDb.collection("sessions").doc(session.id);
+  const advance = async (fromPhase: string, patch: Record<string, unknown>) => {
+    await adminDb
+      .runTransaction(async (t) => {
+        const snap = await t.get(sessionRef);
+        const data = snap.data();
+        if (data && data.phase === fromPhase && data.currentQuestionIndex === questionId) {
+          t.update(sessionRef, { ...patch, updatedAt: new Date().toISOString() });
+        }
+      })
+      .catch(() => { /* another tick/operator already advanced — fine */ });
+  };
+
+  if (isActive && now > endsAt + 3000) {
+    const key = await loadKey(session.id, questionId);
+    await advance("QUESTION_ACTIVE", { phase: "SHOW_RESULTS", revealedAnswerId: key });
+  } else if (isActive && now > endsAt) {
+    await advance("QUESTION_ACTIVE", { phase: "QUESTION_LOCKED" });
+  } else if (isLocked && now > endsAt + 3000) {
+    const key = await loadKey(session.id, questionId);
+    await advance("QUESTION_LOCKED", { phase: "SHOW_RESULTS", revealedAnswerId: key });
+  }
+
+  return { phase: session.phase };
 }

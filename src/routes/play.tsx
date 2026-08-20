@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AnswerTile } from "@/components/quiz/answer-tile";
@@ -41,6 +41,10 @@ function PlayPage() {
   const [identity, setIdentity] = useState<PlayerIdentity | null>(null);
   const [answeredId, setAnsweredId] = useState<AnswerId | null>(null);
   const [pending, setPending] = useState<AnswerId | null>(null);
+  // Baseline captured at the start of each question (before this player answers),
+  // so the results screen can show points gained + rank change for the question.
+  const scoreBeforeRef = useRef(0);
+  const rankBeforeRef = useRef(0);
 
   const questions = useSessionQuestions(playerStorage.get()?.sessionId ?? null);
   const now = useServerClock();
@@ -98,6 +102,10 @@ function PlayPage() {
   useEffect(() => {
     setAnsweredId(null);
     setPending(null);
+    // Snapshot the pre-question total + rank (the player hasn't answered the new
+    // question yet, so these are the "before" values we compare against at reveal).
+    scoreBeforeRef.current = me?.total_score ?? 0;
+    rankBeforeRef.current = myRank > 0 ? myRank : 0;
     if (identity) void syncState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questionIndex]);
@@ -112,6 +120,12 @@ function PlayPage() {
   const me = players.find((p) => p.id === identity?.playerId);
   const ranked = sortLeaderboard(players);
   const myRank = ranked.findIndex((p) => p.id === identity?.playerId) + 1;
+
+  // Per-question feedback + streak (see refs above and the useLivePlayers mapping).
+  const gained = Math.max(0, (me?.total_score ?? 0) - scoreBeforeRef.current);
+  const rankBefore = rankBeforeRef.current;
+  const streak = me?.streak ?? 0;
+  const streakBonus = Math.min(Math.max(streak - 1, 0), 4) * 25;
 
   const choose = async (answerId: AnswerId) => {
     if (!identity || !question || answeredId || pending) return;
@@ -149,7 +163,14 @@ function PlayPage() {
   const header = (
     <div className="flex items-center justify-between gap-2 pb-3">
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold">{identity.displayName}</p>
+        <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+          {identity.displayName}
+          {streak >= 2 && (
+            <span className="shrink-0 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-black text-orange-400">
+              🔥 {streak}
+            </span>
+          )}
+        </p>
         <p className="tabular text-xs text-muted-foreground">
           {me ? `${me.total_score.toLocaleString("he-IL")} נקודות` : "0 נקודות"}
           {myRank > 0 && ` · מיקום ${myRank}`}
@@ -251,6 +272,33 @@ function PlayPage() {
                 : "הפעם לא הצלחת"
               : "לא נקלטה תשובה"}
           </h1>
+          {gained > 0 && (
+            <p className="tabular mt-3 text-2xl font-black text-primary">
+              +{gained.toLocaleString("he-IL")} נקודות
+            </p>
+          )}
+          {answeredId === session.revealed_answer_id && streak >= 2 && (
+            <p className="mt-1 text-sm font-black text-orange-400">
+              🔥 {streak} ברצף!{streakBonus > 0 && ` +${streakBonus} בונוס`}
+            </p>
+          )}
+          {myRank > 0 && rankBefore > 0 && (
+            <p
+              className={`mt-2 text-base font-bold ${
+                myRank < rankBefore
+                  ? "text-emerald-400"
+                  : myRank > rankBefore
+                    ? "text-rose-400"
+                    : "text-muted-foreground"
+              }`}
+            >
+              {myRank < rankBefore
+                ? `עלית למקום ${myRank} ↑`
+                : myRank > rankBefore
+                  ? `ירדת למקום ${myRank} ↓`
+                  : `המיקום שלך: ${myRank}`}
+            </p>
+          )}
           <p className="mt-3 text-muted-foreground">
             התשובה הנכונה מוצגת על המסך הגדול
           </p>

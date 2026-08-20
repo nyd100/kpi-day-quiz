@@ -267,6 +267,8 @@ export function useLivePlayers(sessionId: string | null) {
             cumulative_response_ms: p.cumulativeResponseMs,
             is_virtual: p.isVirtual,
             joined_at: p.joinedAt,
+            streak: p.streak ?? 0,
+            best_streak: p.bestStreak ?? 0,
           } as unknown as PlayerRow;
         }));
       },

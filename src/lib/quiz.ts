@@ -54,6 +54,8 @@ export type PlayerRow = {
   cumulative_response_ms: number;
   is_virtual: boolean;
   joined_at: string;
+  streak?: number;
+  best_streak?: number;
 };
 
 export type AnswerRow = {

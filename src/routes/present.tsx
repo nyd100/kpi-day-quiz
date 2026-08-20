@@ -9,6 +9,7 @@ import { LeaderboardList, Podium } from "@/components/quiz/leaderboard";
 import { ParticipationStrip } from "@/components/quiz/participation-strip";
 import { ResultsBars } from "@/components/quiz/results-bars";
 import { disableSound, enableSound, isSoundEnabled, playCue } from "@/lib/sound";
+import { autoAdvance } from "@/lib/game.functions";
 import {
   useActiveGame,
   useAppSetting,
@@ -142,6 +143,30 @@ function PresentPage() {
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
   }, [canvas.w, canvas.h]);
+
+  // Drive the time-based auto-advance from the projected screen. /present is
+  // always the foreground display, so its 1s interval is never throttled the way
+  // a backgrounded admin console tab would be — the question locks and the answer
+  // is revealed on time even if no operator console is focused. The endpoint is
+  // public + idempotent + time-gated (see autoAdvance in game.functions).
+  const advanceInFlight = useRef(false);
+  useEffect(() => {
+    const p = session?.phase;
+    if (p !== "QUESTION_ACTIVE" && p !== "QUESTION_LOCKED") return;
+    const runAdvance = async () => {
+      if (advanceInFlight.current) return;
+      advanceInFlight.current = true;
+      try {
+        await autoAdvance();
+      } catch {
+        /* transient */
+      } finally {
+        advanceInFlight.current = false;
+      }
+    };
+    const id = setInterval(() => void runAdvance(), 1000);
+    return () => clearInterval(id);
+  }, [session?.phase]);
 
   if (!hydrated) return null;
 

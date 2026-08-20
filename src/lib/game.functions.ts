@@ -77,6 +77,24 @@ export const questionTick = createServerFn({ method: "POST" })
     }
   });
 
+// PUBLIC (no admin token). Lets the always-foreground /present screen drive the
+// time-based auto-advance so progression doesn't depend on the admin console's
+// tab being foregrounded. It takes NO input and can ONLY perform the two
+// time-gated, idempotent transitions on the current active question (LOCK at
+// time-up, reveal 3s later) — it never skips questions, never touches scores or
+// players, and calling it early is a no-op. Keep it exactly this minimal.
+export const autoAdvance = createServerFn({ method: "POST" }).handler(async () => {
+  const { autoAdvanceImpl, getActiveGameImpl } = await import("./game.server");
+  try {
+    const active = await getActiveGameImpl();
+    if (!active) return { ok: false };
+    await autoAdvanceImpl(active.sessionId);
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+});
+
 export const joinGame = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z.object({ pin: z.string().length(4), displayName: z.string().min(1).max(64) }).parse(data),
