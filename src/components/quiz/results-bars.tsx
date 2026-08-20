@@ -43,12 +43,12 @@ export function ResultsBars({
               className={cn(
                 "surface-card flex flex-col justify-center gap-3 p-5 transition-all duration-500",
                 fadeOut && "opacity-40 grayscale-[30%] scale-[0.98]",
-                emphasize && "ring-4 ring-success ring-offset-4 ring-offset-background scale-[1.08] shadow-2xl z-10 bg-success/5",
+                emphasize && "ring-4 ring-success ring-offset-2 ring-offset-background scale-[1.04] shadow-2xl z-10 bg-success/5",
                 "relative"
               )}
             >
               {emphasize && (
-                <div className="absolute -top-4 -end-4 rounded-full bg-success text-success-foreground px-4 py-1 text-sm font-black shadow-lg animate-in zoom-in spin-in-12 duration-500">
+                <div className="absolute -top-3 end-3 rounded-full bg-success text-success-foreground px-4 py-1 text-sm font-black shadow-lg animate-in zoom-in spin-in-12 duration-500">
                   התשובה הנכונה
                 </div>
               )}

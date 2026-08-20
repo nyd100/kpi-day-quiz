@@ -258,7 +258,11 @@ function PresentPage() {
       )}
 
       {session && session.phase !== "LOBBY" && question && (
-        <section className="surface-card flex flex-1 flex-col gap-6 p-8 min-h-0 overflow-hidden">
+        // No overflow-hidden here: the correct-answer tile emphasis (ring +
+        // slight scale + badge) renders OUTSIDE its box, and clipping it cut the
+        // green ring at the screen edge. The 1080-tall canvas already gives the
+        // content vertical room, so nothing needs clipping at the section level.
+        <section className="surface-card flex flex-1 flex-col gap-6 p-8 min-h-0">
           <div className="flex items-start justify-between gap-6">
             <div>
               <p className="text-lg font-bold text-primary">
