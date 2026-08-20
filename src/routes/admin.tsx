@@ -272,7 +272,10 @@ function AdminPage() {
     const previous = presentAspect;
     setPresentAspect(aspect);
     try {
-      await adminSetPresentAspect({ data: { token, aspect } });
+      // Use a fresh ID token (like run/tick): the token captured at login can be
+      // stale/expired by the time the operator flips this, which would fail the write.
+      const t = await freshToken();
+      await adminSetPresentAspect({ data: { token: t, aspect } });
     } catch (error) {
       setPresentAspect(previous);
       toast.error(error instanceof Error ? error.message : "שמירת יחס המסך נכשלה.");
