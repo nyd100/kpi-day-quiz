@@ -128,7 +128,10 @@ function PresentPage() {
     if (ok) playCue("questionStart");
   };
 
-  const canvas = aspectSetting === "4:3" ? { w: 1200, h: 900 } : { w: 1600, h: 900 };
+  // Fixed-height design canvas (1080 = real projector height) scaled to fit the
+  // screen. Height is constant across ratios so the tallest phase (SHOW_RESULTS)
+  // has room and never clips; only the width changes with the chosen aspect.
+  const canvas = aspectSetting === "4:3" ? { w: 1440, h: 1080 } : { w: 1920, h: 1080 };
   const [stageScale, setStageScale] = useState(1);
   useEffect(() => {
     const fit = () => {
