@@ -20,6 +20,7 @@ import {
   adminSaveQuestion,
   adminSetDefaultDuration,
   adminSetAllQuestionsDuration,
+  adminSetPresentAspect,
   adminSetQuestionEnabled,
   adminUploadLogo,
   adminUploadQuestionImage,
@@ -93,6 +94,7 @@ function AdminPage() {
   const active = useActiveGame();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [defaultDuration, setDefaultDuration] = useState(30);
+  const [presentAspect, setPresentAspect] = useState<"16:9" | "4:3">("16:9");
 
   // ------------------------------------------------ live control of the game
   const now = useServerClock();
@@ -263,6 +265,18 @@ function AdminPage() {
     setQuestions(list);
     setLogoUrl(settings.logoUrl);
     setDefaultDuration(settings.defaultDurationSeconds);
+    setPresentAspect(settings.presentAspect === "4:3" ? "4:3" : "16:9");
+  };
+
+  const changePresentAspect = async (aspect: "16:9" | "4:3") => {
+    const previous = presentAspect;
+    setPresentAspect(aspect);
+    try {
+      await adminSetPresentAspect({ data: { token, aspect } });
+    } catch (error) {
+      setPresentAspect(previous);
+      toast.error(error instanceof Error ? error.message : "שמירת יחס המסך נכשלה.");
+    }
   };
 
   const changeDefaultDuration = async (seconds: number) => {
@@ -736,6 +750,29 @@ function AdminPage() {
           >
             החל על כל השאלות
           </button>
+        </div>
+      </section>
+
+      <section className="surface-card mb-6 space-y-3 p-5">
+        <h2 className="text-lg font-bold">יחס מסך התצוגה</h2>
+        <p className="text-sm text-muted-foreground">
+          התאם את יחס מסך המשחק החי למקרן/מסך באולם. בכל יחס התוכן מוצג במלואו וממורכז, בלי חיתוך.
+        </p>
+        <div className="flex items-center gap-3">
+          {(["16:9", "4:3"] as const).map((a) => (
+            <button
+              key={a}
+              onClick={() => void changePresentAspect(a)}
+              disabled={busy}
+              className={`h-11 rounded-xl border px-5 text-sm font-bold disabled:opacity-40 ${
+                presentAspect === a
+                  ? "border-transparent bg-gradient-accent text-primary-foreground"
+                  : "border-input"
+              }`}
+            >
+              {a}
+            </button>
+          ))}
         </div>
       </section>
 

@@ -236,6 +236,21 @@ export const adminSetShowInsights = createServerFn({ method: "POST" })
     }
   });
 
+export const adminSetPresentAspect = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ token, aspect: z.enum(["16:9", "4:3"]) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { assertAdmin, setPresentAspectImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      await assertAdmin(data.token);
+      return await setPresentAspectImpl(data.aspect);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "שמירת יחס המסך נכשלה.");
+    }
+  });
+
 export const adminUploadLogo = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z

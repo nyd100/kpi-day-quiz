@@ -376,23 +376,27 @@ export const LOGO_KEY = "org_logo_url";
 export const DURATION_KEY = "default_duration_seconds";
 export const SHOW_INSIGHTS_KEY = "show_insights";
 export const FALLBACK_DURATION = 30;
+export const ASPECT_KEY = "present_aspect";
+export const FALLBACK_ASPECT = "16:9";
 
 export async function getSettingsImpl() {
   try {
     const snap = await adminDb.collection("settings").doc("global").get();
     const map = snap.data() || {};
-    
+
     const parsed = Number(map[DURATION_KEY]);
     return {
       logoUrl: map[LOGO_KEY] ?? null,
       defaultDurationSeconds: Number.isFinite(parsed) && parsed > 0 ? parsed : FALLBACK_DURATION,
       showInsights: map[SHOW_INSIGHTS_KEY] !== false,
+      presentAspect: map[ASPECT_KEY] === "4:3" ? "4:3" : "16:9",
     };
   } catch (error) {
     return {
       logoUrl: null,
       defaultDurationSeconds: FALLBACK_DURATION,
       showInsights: true,
+      presentAspect: "16:9",
     };
   }
 }
@@ -435,6 +439,14 @@ export async function setShowInsightsImpl(show: boolean) {
     { merge: true }
   );
   return { showInsights: show };
+}
+
+export async function setPresentAspectImpl(aspect: "16:9" | "4:3") {
+  await adminDb.collection("settings").doc("global").set(
+    { [ASPECT_KEY]: aspect, updated_at: new Date().toISOString() },
+    { merge: true }
+  );
+  return { presentAspect: aspect };
 }
 
 export async function uploadLogoImpl(input: {

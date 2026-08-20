@@ -8,12 +8,12 @@ export function ParticipationStrip({
   answers: AnswerRow[];
   players: PlayerRow[];
 }) {
-  const { count, total, percentage, recentNames, moreCount } = useMemo(() => {
+  const { count, recentNames, moreCount } = useMemo(() => {
     // Only count valid, non-duplicate answers (useQuestionAnswers handles this or just length).
     // The query returns one row per player per question.
+    // Deliberately show only how many have answered — not "X of Y" and not a
+    // percentage — so a low turnout never looks embarrassing on the big screen.
     const count = answers.length;
-    const total = players.length;
-    const percentage = total === 0 ? 0 : Math.round((count / total) * 100);
 
     // Sort answers by response_ms descending (largest = most recent)
     const sorted = [...answers].sort((a, b) => b.response_ms - a.response_ms);
@@ -30,13 +30,13 @@ export function ParticipationStrip({
     const recentNames = names.slice(0, limit);
     const moreCount = Math.max(0, count - limit);
 
-    return { count, total, percentage, recentNames, moreCount };
+    return { count, recentNames, moreCount };
   }, [answers, players]);
 
   return (
     <div className="surface-card flex flex-col sm:flex-row items-center gap-4 px-4 py-3 text-sm animate-in fade-in slide-in-from-bottom-2">
       <div className="font-bold text-primary shrink-0 whitespace-nowrap">
-        {count} מתוך {total} הצביעו &middot; {percentage}%
+        {count} כבר ענו
       </div>
 
       {recentNames.length > 0 && (

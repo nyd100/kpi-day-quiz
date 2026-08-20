@@ -47,6 +47,7 @@ function PresentPage() {
   const questions = useSessionQuestions(active?.sessionId ?? null);
   const players = useLivePlayers(active?.sessionId ?? null);
   const logoUrl = useAppSetting("org_logo_url");
+  const aspectSetting = useAppSetting("present_aspect");
 
   const questionIndex = session?.current_question_index ?? 0;
   const totalQuestions = session?.total_questions ?? questions.length;
@@ -127,6 +128,18 @@ function PresentPage() {
     if (ok) playCue("questionStart");
   };
 
+  const canvas = aspectSetting === "4:3" ? { w: 1200, h: 900 } : { w: 1600, h: 900 };
+  const [stageScale, setStageScale] = useState(1);
+  useEffect(() => {
+    const fit = () => {
+      const s = Math.min(window.innerWidth / canvas.w, window.innerHeight / canvas.h);
+      setStageScale(s > 0 ? s : 1);
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [canvas.w, canvas.h]);
+
   if (!hydrated) return null;
 
   if (!active) {
@@ -156,7 +169,17 @@ function PresentPage() {
     typeof window !== "undefined" ? `${window.location.origin}/?pin=${active.pin}` : "";
 
   return (
-    <main className="mx-auto flex min-h-screen w-[96vw] max-w-[1920px] flex-col gap-6 py-6">
+    <div className="fixed inset-0 flex items-center justify-center overflow-hidden bg-background">
+      <div
+        style={{
+          width: canvas.w,
+          height: canvas.h,
+          transform: `scale(${stageScale})`,
+          transformOrigin: "center center",
+        }}
+        className="shrink-0"
+      >
+      <main className="flex h-full w-full flex-col gap-6 p-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <div className="flex items-center rounded-2xl bg-white px-5 py-3 shadow-lg">
@@ -186,7 +209,7 @@ function PresentPage() {
       </header>
 
       {session?.phase === "LOBBY" && (
-        <section className="surface-card flex flex-1 flex-col items-center justify-center gap-4 p-10 text-center">
+        <section className="surface-card flex flex-1 flex-col items-center justify-center gap-4 p-10 text-center min-h-0 overflow-hidden">
           <p className="text-lg text-muted-foreground">הצטרפו מהטלפון עם הקוד</p>
           <div className="flex flex-col items-center gap-6">
             {joinUrl && (
@@ -207,7 +230,7 @@ function PresentPage() {
       )}
 
       {session && session.phase !== "LOBBY" && question && (
-        <section className="surface-card flex flex-1 flex-col gap-6 p-8">
+        <section className="surface-card flex flex-1 flex-col gap-6 p-8 min-h-0 overflow-hidden">
           <div className="flex items-start justify-between gap-6">
             <div>
               <p className="text-lg font-bold text-primary">
@@ -268,6 +291,8 @@ function PresentPage() {
         </section>
       )}
 
+      </main>
+      </div>
       {/* Projected screen: no management controls. Sound stays as a discreet toggle. */}
       <button
         onClick={() => void toggleSound()}
@@ -276,7 +301,6 @@ function PresentPage() {
       >
         {sound ? "🔊" : "🔇"}
       </button>
-
-    </main>
+    </div>
   );
 }
