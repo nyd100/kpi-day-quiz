@@ -94,7 +94,9 @@ export function ResultsBars({
       
       <div className="surface-card p-4 mt-4 text-center">
         <p className="tabular text-base font-medium text-muted-foreground">
-          <strong className="text-foreground">{stats.responses}</strong> מתוך <strong className="text-foreground">{stats.totalPlayers}</strong> משתתפים ענו ({stats.percents.A + stats.percents.B + stats.percents.C + stats.percents.D}% השתתפות)
+          {/* Deliberately show only how many answered — no "X of Y" and no
+              participation percentage — so a low turnout is never awkward on stage. */}
+          <strong className="text-foreground">{stats.responses}</strong> ענו
           {stats.averageResponseMs !== null && (
             <> &middot; זמן תגובה ממוצע <strong>{(stats.averageResponseMs / 1000).toFixed(1)} שניות</strong></>
           )}
