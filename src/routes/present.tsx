@@ -257,7 +257,7 @@ function PresentPage() {
         </section>
       )}
 
-      {session && session.phase !== "LOBBY" && question && (
+      {session && session.phase !== "LOBBY" && session.phase !== "GAME_COMPLETE" && question && (
         // No overflow-hidden here: the correct-answer tile emphasis (ring +
         // slight scale + badge) renders OUTSIDE its box, and clipping it cut the
         // green ring at the screen edge. The 1080-tall canvas already gives the
@@ -313,13 +313,14 @@ function PresentPage() {
           )}
 
           {session.phase === "LEADERBOARD" && <LeaderboardList players={players} limit={10} />}
+        </section>
+      )}
 
-          {session.phase === "GAME_COMPLETE" && (
-            <div className="space-y-6">
-              <h2 className="text-center text-3xl font-black">התוצאות הסופיות 🎉</h2>
-              <Podium players={players} />
-            </div>
-          )}
+      {/* Final winners: a clean end screen — only the podium, no lingering question. */}
+      {session?.phase === "GAME_COMPLETE" && (
+        <section className="surface-card flex flex-1 flex-col items-center justify-center gap-10 p-10 text-center min-h-0">
+          <h2 className="text-5xl font-black text-gradient-accent">התוצאות הסופיות 🎉</h2>
+          <Podium players={players} />
         </section>
       )}
 
