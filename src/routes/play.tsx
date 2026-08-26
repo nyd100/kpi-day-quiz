@@ -321,6 +321,14 @@ function PlayPage() {
         </Panel>
       )}
 
+      {session.phase === "SHOW_FACT" && (
+        <Panel>
+          <p className="text-sm font-semibold text-primary">💡 עובדה מעניינת</p>
+          <h1 className="mt-3 text-xl font-black leading-snug">{question?.funFact}</h1>
+          <p className="mt-4 text-sm text-muted-foreground">מוצג גם על המסך הגדול</p>
+        </Panel>
+      )}
+
       {(session.phase === "LEADERBOARD" || session.phase === "GAME_COMPLETE") && (
         <section className="flex flex-1 flex-col gap-4 pt-2">
           <div className="surface-card p-5 text-center">

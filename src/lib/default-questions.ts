@@ -1,5 +1,7 @@
-// The approved default dataset: 16 real KPI questions for סיכום חציון א' 2026.
+// The approved default dataset for סיכום חציון א' 2026 (updated 26.8.26).
 // Values, answers and correct keys must not be altered.
+// Question 12 is intentionally an empty placeholder — a slot to be filled in the
+// admin console before the event (isPlaceholder + disabled).
 import type { AnswerId, QuestionCategory } from "@/lib/quiz";
 
 export type DefaultQuestion = {
@@ -10,103 +12,110 @@ export type DefaultQuestion = {
   title: string;
   answers: [string, string, string, string];
   correctAnswerId: AnswerId;
+  // Optional "עובדה מעניינת" shown on the big screen after this question's
+  // results and before the ranking. Enabled per question.
+  funFact?: string | null;
+  funFactEnabled?: boolean;
+  isPlaceholder?: boolean;
+  isEnabled?: boolean;
 };
 
 export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
   {
     order: 1,
-    category: "OUTCOME",
-    durationSeconds: 30,
+    category: "OUTPUT",
+    durationSeconds: 20,
     pairId: null,
-    title:
-      'כמה עולים חדשים שולבו בהצלחה בעבודה בסיום תוכנית "עלייה 2000" במהלך חציון א\' 2026?',
-    answers: ["550 עולים", "620 עולים", "772 עולים", "810 עולים"],
-    correctAnswerId: "C",
+    title: 'מספר החיילים העולים שהתגייסו לצה"ל במהלך החציון הראשון של שנת 2026?',
+    answers: ["702", "1,206", "3,478", "214"],
+    correctAnswerId: "B",
   },
   {
     order: 2,
     category: "OUTCOME",
     durationSeconds: 30,
     pairId: null,
-    title: "כמה עולים עזבו את מרכזי הקליטה ועברו למגורי קבע בקהילה בחצי השנה הראשונה?",
-    answers: ["450 עולים", "700 עולים", "950 עולים", "1,300 עולים"],
-    correctAnswerId: "B",
+    title: 'מה היה אחוז העולים שדיווחו על שביעות רצון גבוהה ומאוד גבוהה מהליך הקליטה בנתב"ג בחציון א\'?',
+    answers: ["62%", "מי בכלל מודד מדדי תוצאה של שביעות רצון?", "73.2%", "94.5%"],
+    correctAnswerId: "D",
   },
   {
     order: 3,
     category: "OUTCOME",
     durationSeconds: 30,
     pairId: null,
-    title:
-      "מה היה אחוז העולים שדיווחו על שביעות רצון גבוהה ומאוד גבוהה מהליך הקליטה בנתב\"ג בחציון א'?",
-    answers: ["82.0%", "88.5%", "90.0%", "94.5%"],
-    correctAnswerId: "D",
+    title: "כמה עולים עזבו את מרכזי הקליטה ועברו למגורי קבע בקהילה בחצי השנה הראשונה של שנת 2026?",
+    answers: ["450 עולים", "700 עולים", "950 עולים", "1,300 עולים"],
+    correctAnswerId: "B",
+    funFact: "לאן הם עברו / מתוך כמה שמתגוררים במרכזי קליטה?",
+    funFactEnabled: true,
   },
   {
     order: 4,
-    category: "OUTCOME",
-    durationSeconds: 30,
+    category: "OUTPUT",
+    durationSeconds: 20,
     pairId: null,
-    title:
-      "כמה עולים בחרו לקבוע את ביתם ב-5 יישובי המטרה בדרום - קריית גת, אשקלון, שדרות, באר שבע ואילת - בחציון א'?",
-    answers: ["320 עולים", "587 עולים", "740 עולים", "1,100 עולים"],
-    correctAnswerId: "B",
+    title: "לאיזו מהערים הבאות הגיעו בשנת 2026 המספר הגדול ביותר של עולים ממדינות המערב?",
+    answers: ["נתניה", "ירושלים", "תל-אביב", "חדרה"],
+    correctAnswerId: "C",
+    funFact: "השנה הגיעו לתל אביב כבר כ-1,846 עולים!",
+    funFactEnabled: true,
   },
   {
     order: 5,
-    category: "OUTPUT",
-    durationSeconds: 20,
-    pairId: 1,
-    title:
-      'כמה כיתות פל״א ויע״ל חדשות לתגבור עברית ולימודים לילדים ונוער נפתחו בעיר תל אביב בחציון א\'?',
-    answers: ["כיתה 1", "2 כיתות", "3 כיתות", "5 כיתות"],
-    correctAnswerId: "C",
+    category: "OUTCOME",
+    durationSeconds: 30,
+    pairId: null,
+    title: "במסגרת ירידים שהתקיימו ברחבי העולם בשנת 2026 הופצו מוצרי פרסום ב-50 מהם. מה מבין הבאים הוא מדד תוצאה המודד את האפקטיביות של המהלך?",
+    answers: [
+      "הדפסת 10,000 עלוני פרסום נוספים ב-4 שפות",
+      "הגדלת מספר הירידים בהם המשרד ייקח חלק בשנה הבאה ל-60",
+      "הגדלת המסגרת התקציבית המיועדת למוצרי פרסום",
+      "גידול של 20% במספר המשתתפים ביריד שנרשמו לייעוץ עלייה אישי בעקבות החשיפה",
+    ],
+    correctAnswerId: "D",
   },
   {
     order: 6,
-    category: "OUTCOME",
-    durationSeconds: 30,
-    pairId: 1,
-    title:
-      'נפתחו 3 כיתות פל״א ויע״ל חדשות. מהו מדד התוצאה (Outcome) האמיתי שתרצה ההנהלה למדוד בחציון הבא עבור תוכנית זו?',
-    answers: [
-      "פתיחת 2 כיתות נוספות בחציון ב'",
-      "עלייה של 30% בציוני העברית והשתלבות נורמטיבית של התלמידים בבתי הספר",
-      "קיום 15 סדנאות תגבור נוספות במהלך השנה",
-      "רכישת 50 ספרי לימוד חדשים לכיתות",
-    ],
-    correctAnswerId: "B",
+    category: "OUTPUT",
+    durationSeconds: 20,
+    pairId: null,
+    title: "כמה עולים הגיעו לישראל בשנת 2026 ממדינות שבהן מופעל מערך הליווי לעידוד עלייה?",
+    answers: ["1,200 עולים", "1,650 עולים", "2,005 עולים", "3,100 עולים"],
+    correctAnswerId: "C",
   },
   {
     order: 7,
     category: "OUTPUT",
     durationSeconds: 20,
-    pairId: 2,
-    title:
-      "כמה פגישות מ.י.ם (מיפוי, ייעוץ ומעקב) קוימו עם משפחות עולים במרכזי הקליטה במהלך חציון א'?",
-    answers: ["65 פגישות", "85 פגישות", "110 פגישות", "180 פגישות"],
-    correctAnswerId: "C",
+    pairId: null,
+    title: 'מהן שלושת הרשויות בהן מספר הקבוצות של תכנית פל"א הוא הגבוה ביותר בשנת 2026?',
+    answers: [
+      "תל אביב, אשקלון ונתניה",
+      "ירושלים, אשקלון ובית שמש",
+      "בית שמש, באר שבע ומודיעין",
+      "מודיעין, תל אביב ובאר שבע",
+    ],
+    correctAnswerId: "B",
+    funFact: 'בשלוש הרשויות נפתחו סך הכל 61 כיתות של תכנית פל"א, כאשר המובילה היא ירושלים עם 27 כיתות!',
+    funFactEnabled: true,
   },
   {
     order: 8,
-    category: "OUTCOME",
-    durationSeconds: 30,
-    pairId: 2,
-    title:
-      "קוימו 110 פגישות מ.י.ם עם משפחות עולים. איזה מהמדדים הבאים מייצג מדד תוצאה (Outcome) של פגישות אלו?",
-    answers: [
-      "הגדלת מספר הפגישות ל-150 בחציון הבא",
-      "אחוז העולים שגובשה עבורם תוכנית קליטה אישית שמומשה בהצלחה תוך 6 חודשים",
-      "הרחבת המערך וביצוע פגישות ל-50 משפחות נוספות",
-      "הדפסת 200 ערכות מידע לחלוקה בפגישות",
-    ],
-    correctAnswerId: "B",
+    category: "OUTPUT",
+    durationSeconds: 20,
+    pairId: null,
+    title: 'כמה מסגרות ליווי קהילתיות הוקמו לטובת צעירים יוצאי ברה"מ לשעבר במסגרת רשת א.ד.מ.ה?',
+    answers: ["10", "13", "15", "12"],
+    correctAnswerId: "C",
+    funFact: "מדובר על הקמה של 25% יותר קהילות מהיעד השנתי שהוגדר!",
+    funFactEnabled: true,
   },
   {
     order: 9,
     category: "OUTPUT",
     durationSeconds: 20,
-    pairId: 3,
+    pairId: null,
     title: "כמה רופאים השתתפו בקורסי עברית טרום-עלייה שהופעלו בחציון א'?",
     answers: ["20 רופאים", "40 רופאים", "65 רופאים", "100 רופאים"],
     correctAnswerId: "B",
@@ -115,9 +124,8 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     order: 10,
     category: "OUTCOME",
     durationSeconds: 30,
-    pairId: 3,
-    title:
-      "40 רופאים משתתפים בקורסי עברית טרום-עלייה. מהו מדד התוצאה (Outcome) שיש למדוד לאחר עלייתם לארץ?",
+    pairId: null,
+    title: "40 רופאים משתתפים בקורסי עברית טרום-עלייה. מהו מדד התוצאה שיש למדוד לאחר עלייתם לארץ?",
     answers: [
       'פתיחת 3 קורסי עברית נוספים לרופאים בחו"ל',
       "אחוז הרופאים שעברו בהצלחה את בחינת הרישוי והשתלבו במערכת הבריאות תוך שנה",
@@ -130,32 +138,32 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     order: 11,
     category: "OUTPUT",
     durationSeconds: 20,
-    pairId: 4,
-    title: "כמה עולים הגיעו לישראל בחציון א' ממדינות שבהן מופעל מערך הליווי לעידוד עלייה?",
-    answers: ["1,200 עולים", "1,650 עולים", "2,005 עולים", "3,100 עולים"],
-    correctAnswerId: "C",
+    pairId: null,
+    title: 'מה מספר העולים והתושבים החוזרים שקיבלו ליווי עסקי במסגרת מרכזי ייעוץ עסקי מעלו"ת במהלך החציון הראשון של 2026?',
+    answers: ["2,987", "3,525", "1,987", "2,643"],
+    correctAnswerId: "A",
+    funFact: "בחציון הראשון הושגו כבר 84% מערך היעד השנתי שהוגדר!",
+    funFactEnabled: true,
   },
   {
+    // Empty placeholder — a slot to insert the budget question in the admin
+    // console. Disabled so it does not appear in the game until filled + enabled.
     order: 12,
-    category: "OUTCOME",
-    durationSeconds: 30,
-    pairId: 4,
-    title:
-      "2,005 עולים עלו ממדינות מערך הליווי. איזה מדד יגדיר תוצאה ואימפקט ארוך טווח של פעילות המערך?",
-    answers: [
-      'הגדלת כמות פגישות ההסברה בחו"ל ב-20%',
-      "שיעור העולים ממדינות אלו שהשתקעו בישראל ודיווחו על קליטה מוצלחת לאחר 3 שנים",
-      "ניצול מלא של תקציב הפרסום של מערך הליווי",
-      'הנפקת 3,000 תעודות זכאות בחו"ל',
-    ],
-    correctAnswerId: "B",
+    category: "OUTPUT",
+    durationSeconds: 20,
+    pairId: null,
+    title: "",
+    answers: ["", "", "", ""],
+    correctAnswerId: "A",
+    isPlaceholder: true,
+    isEnabled: false,
   },
   {
     order: 13,
     category: "OUTPUT",
     durationSeconds: 20,
-    pairId: 5,
-    title: "כמה מועמדי עלייה צעירים פנו לקבלת שירות טרום-עלייה בחציון א' 2026?",
+    pairId: null,
+    title: "כמה מועמדי עלייה פנו למנהל הסטודנטים לקבלת שירות טרום-עלייה ב-2026?",
     answers: ["3,400 פונים", "4,800 פונים", "5,278 פונים", "6,500 פונים"],
     correctAnswerId: "C",
   },
@@ -163,49 +171,14 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     order: 14,
     category: "OUTCOME",
     durationSeconds: 30,
-    pairId: 5,
-    title:
-      "רשמנו 5,278 פניות של צעירים בשירות טרום-עלייה. איך נהפוך את הנתון הזה למדד תוצאה (Outcome)?",
+    pairId: null,
+    title: "רשמנו 5,278 פניות של צעירים בשירות טרום-עלייה - שזה כבר מעבר ליעד השנתי שהוגדר! אבל, איך נוכל להפוך את הנתון הזה למדד תוצאה?",
     answers: [
-      "הגדלת יעד הפניות בחציון ב' ל-7,000 צעירים",
-      "אחוז הפונים שפתחו תיק עלייה בפועל והמשיכו לתהליך מימוש תוך 90 יום",
-      "קיצור זמן ההמתנה למענה טלפוני במוקד ל-2 דקות",
-      "גיוס 3 נציגי שירות נוספים למוקד",
+      "הגדלת יעד הפניות בחציון ב' ל-7,000 צעירים (במקום 5,000 כפי שמוגדר כיום)",
+      "הגדלת מספר הפניות היזומות של מנהל הסטודנטים למועמדי עלייה ל-7,000",
+      "אחוז הפונים שפתחו תיק עלייה בפועל והשלימו את הליך העלייה לטובת לימודים אקדמאיים עד לשנת הלימודים הבאה",
+      "גיוס 5 מלווי עולים נוספים שיובילו את הטיפול והסיוע לאותם מועמדי עלייה",
     ],
-    correctAnswerId: "B",
-  },
-  {
-    order: 15,
-    category: "OUTPUT",
-    durationSeconds: 20,
-    pairId: 6,
-    title: "בכמה ירידי עלייה ברחבי העולם הופצו מוצרי פרסום והסברה משרדיים בחציון א'?",
-    answers: ["25 ירידים", "38 ירידים", "50 ירידים", "65 ירידים"],
     correctAnswerId: "C",
   },
-  {
-    order: 16,
-    category: "OUTCOME",
-    durationSeconds: 30,
-    pairId: 6,
-    title:
-      "הופצו מוצרי פרסום ב-50 ירידים בעולם. מה מבין הבאים הוא מדד תוצאה (Outcome) המודד את האפקטיביות של המהלך?",
-    answers: [
-      'הדפסת 10,000 עלוני פרסום נוספים ב-4 שפות',
-      "גידול של 20% במספר המשתתפים ביריד שנרשמו לייעוץ עלייה אישי בעקבות החשיפה",
-      "השתתפות ב-60 ירידים בשנה הבאה",
-      "שמירה על מסגרת התקציב שהוקצתה למוצרי פרסום",
-    ],
-    correctAnswerId: "B",
-  },
 ];
-
-/** Informational pair metadata (survives reordering). */
-export const PAIR_TOPICS: Record<number, string> = {
-  1: "כיתות פל״א ויע״ל",
-  2: "פגישות מ.י.ם",
-  3: "רופאים וקורסי עברית טרום-עלייה",
-  4: "מערך הליווי לעידוד עלייה",
-  5: "שירות טרום-עלייה לצעירים",
-  6: "ירידי עלייה ומוצרי פרסום",
-};

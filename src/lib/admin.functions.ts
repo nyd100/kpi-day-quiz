@@ -52,6 +52,8 @@ export const adminSaveQuestion = createServerFn({ method: "POST" })
           correctAnswerId: answerId,
           explanation: z.string().max(1000).nullable(),
           isPlaceholder: z.boolean(),
+          funFact: z.string().max(500).nullish(),
+          funFactEnabled: z.boolean().optional(),
         }),
       })
       .parse(data),

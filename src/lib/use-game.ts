@@ -123,6 +123,8 @@ export function useQuestions() {
               executiveInsight: qData.executiveInsight,
               isPlaceholder: qData.isPlaceholder,
               imageUrl: qData.imageUrl ?? null,
+              funFact: qData.funFact ?? null,
+              funFactEnabled: qData.funFactEnabled ?? false,
             };
           })
         );
@@ -363,6 +365,8 @@ export function useSessionQuestions(sessionId: string | null) {
               executiveInsight: qData.executiveInsight,
               isPlaceholder: false,
               imageUrl: qData.imageUrl ?? null,
+              funFact: qData.funFact ?? null,
+              funFactEnabled: qData.funFactEnabled ?? false,
             };
           })
         );

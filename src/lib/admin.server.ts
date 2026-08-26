@@ -77,6 +77,8 @@ export type AdminQuestion = {
   explanation: string | null;
   orderIndex: number;
   isEnabled: boolean;
+  funFact: string | null;
+  funFactEnabled: boolean;
 };
 
 export async function listAdminQuestions(): Promise<AdminQuestion[]> {
@@ -108,6 +110,8 @@ export async function listAdminQuestions(): Promise<AdminQuestion[]> {
         explanation: key?.explanation ?? null,
         orderIndex: q.orderIndex ?? 0,
         isEnabled: q.isEnabled ?? true,
+        funFact: q.funFact ?? null,
+        funFactEnabled: q.funFactEnabled ?? false,
       };
     });
   } catch (error: any) {
@@ -132,6 +136,8 @@ export type SaveQuestionInput = {
   isPlaceholder: boolean;
   pairId?: number | null | undefined;
   isEnabled?: boolean | undefined;
+  funFact?: string | null | undefined;
+  funFactEnabled?: boolean | undefined;
 };
 
 export async function saveQuestionImpl(input: SaveQuestionInput) {
@@ -157,6 +163,8 @@ export async function saveQuestionImpl(input: SaveQuestionInput) {
     executiveInsight: input.executiveInsight?.trim() || null,
     isPlaceholder: input.isPlaceholder,
     pairId: input.pairId ?? null,
+    funFact: input.funFact?.trim() || null,
+    funFactEnabled: input.funFactEnabled ?? false,
   };
   
   if (input.isEnabled !== undefined) {
@@ -212,6 +220,8 @@ export async function createQuestionImpl() {
         isPlaceholder: true,
         orderIndex: nextOrder,
         isEnabled: true,
+        funFact: null,
+        funFactEnabled: false,
       });
       t.set(keyRef, {
         questionId: nextId,
@@ -297,9 +307,11 @@ export async function restoreDefaultQuestionsImpl() {
         durationSeconds: q.durationSeconds,
         scoringMode: "QUIZ",
         executiveInsight: null,
-        isPlaceholder: false,
+        isPlaceholder: q.isPlaceholder ?? false,
         orderIndex: q.order,
-        isEnabled: true,
+        isEnabled: q.isEnabled ?? true,
+        funFact: q.funFact ?? null,
+        funFactEnabled: q.funFactEnabled ?? false,
       });
 
       batch.set(kRef, {

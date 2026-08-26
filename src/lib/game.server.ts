@@ -126,6 +126,8 @@ async function buildSnapshot(sessionId: string): Promise<number> {
       scoringMode: q.scoringMode,
       executiveInsight: q.executiveInsight,
       imageUrl: q.imageUrl ?? null,
+      funFact: q.funFact ?? null,
+      funFactEnabled: q.funFactEnabled ?? false,
     });
     
     batch.set(kRef, {
@@ -232,7 +234,15 @@ export async function hostCommandImpl(sessionId: string, action: HostAction, cou
       totalQuestions = await buildSnapshot(session.id);
     }
 
-    const next = resolveAction(action as GameAction, session.phase, session.currentQuestionIndex, totalQuestions);
+    let hasFact = false;
+    if (session.currentQuestionIndex >= 1 && session.currentQuestionIndex <= totalQuestions) {
+      try {
+        const cur = await loadQuestion(session.id, session.currentQuestionIndex);
+        hasFact = !!(cur.funFactEnabled && cur.funFact && String(cur.funFact).trim());
+      } catch { hasFact = false; }
+    }
+
+    const next = resolveAction(action as GameAction, session.phase, session.currentQuestionIndex, totalQuestions, hasFact);
     // Illegal for the current phase almost always means another device already
     // advanced the game (multi-operator / auto-lock). Return a benign no-op so the
     // operator never sees a red "not possible in current state" toast — the live

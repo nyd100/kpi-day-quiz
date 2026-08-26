@@ -312,6 +312,13 @@ function PresentPage() {
             </div>
           )}
 
+          {session.phase === "SHOW_FACT" && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
+              <span className="rounded-full bg-primary/15 px-6 py-2 text-2xl font-black text-primary">💡 עובדה מעניינת</span>
+              <p className="max-w-5xl text-4xl font-black leading-snug">{question.funFact}</p>
+            </div>
+          )}
+
           {session.phase === "LEADERBOARD" && <LeaderboardList players={players} limit={10} />}
         </section>
       )}

@@ -6,6 +6,7 @@ export type GamePhase =
   | "QUESTION_ACTIVE"
   | "QUESTION_LOCKED"
   | "SHOW_RESULTS"
+  | "SHOW_FACT"
   | "LEADERBOARD"
   | "GAME_COMPLETE";
 
@@ -14,7 +15,7 @@ export type ScoringMode = "QUIZ" | "POLL";
 export type AnswerId = "A" | "B" | "C" | "D";
 
 export const ANSWER_IDS: AnswerId[] = ["A", "B", "C", "D"];
-export const TOTAL_QUESTIONS = 16;
+export const TOTAL_QUESTIONS = 14;
 
 export type QuizQuestion = {
   id: number;
@@ -28,6 +29,9 @@ export type QuizQuestion = {
   executiveInsight: string | null;
   isPlaceholder: boolean;
   imageUrl: string | null;
+  // "עובדה מעניינת" shown on the big screen after results, before the ranking.
+  funFact: string | null;
+  funFactEnabled: boolean;
 };
 
 export type SessionRow = {
@@ -99,6 +103,7 @@ export type GameAction =
   | "START_QUESTION"
   | "LOCK"
   | "SHOW_RESULTS"
+  | "SHOW_FACT"
   | "SHOW_LEADERBOARD"
   | "NEXT_QUESTION"
   | "FINISH";
@@ -113,6 +118,7 @@ export function resolveAction(
   phase: GamePhase,
   questionIndex: number,
   totalQuestions: number,
+  hasFact: boolean = false,
 ): Transition | null {
   switch (action) {
     case "START_GAME":
@@ -125,14 +131,19 @@ export function resolveAction(
       return phase === "QUESTION_ACTIVE" || phase === "QUESTION_LOCKED"
         ? { phase: "SHOW_RESULTS", questionIndex }
         : null;
+    case "SHOW_FACT":
+      // Optional interesting-fact screen, only when this question has one enabled.
+      return phase === "SHOW_RESULTS" && hasFact ? { phase: "SHOW_FACT", questionIndex } : null;
     case "SHOW_LEADERBOARD":
-      return phase === "SHOW_RESULTS" ? { phase: "LEADERBOARD", questionIndex } : null;
+      return phase === "SHOW_RESULTS" || phase === "SHOW_FACT"
+        ? { phase: "LEADERBOARD", questionIndex }
+        : null;
     case "NEXT_QUESTION":
-      if (phase !== "SHOW_RESULTS" && phase !== "LEADERBOARD") return null;
+      if (phase !== "SHOW_RESULTS" && phase !== "SHOW_FACT" && phase !== "LEADERBOARD") return null;
       if (questionIndex >= totalQuestions) return null;
       return { phase: "QUESTION_INTRO", questionIndex: questionIndex + 1 };
     case "FINISH":
-      return phase === "LEADERBOARD" || phase === "SHOW_RESULTS"
+      return phase === "LEADERBOARD" || phase === "SHOW_RESULTS" || phase === "SHOW_FACT"
         ? { phase: "GAME_COMPLETE", questionIndex }
         : null;
     default:
@@ -145,8 +156,16 @@ export function nextAction(
   phase: GamePhase,
   questionIndex: number,
   totalQuestions: number,
+  hasFact: boolean = false,
 ): { action: GameAction; label: string } | null {
   const isLast = questionIndex >= totalQuestions;
+  // What to do once results (and the optional fact) have been shown.
+  const afterResults = (): { action: GameAction; label: string } => {
+    if (isLast) return { action: "SHOW_LEADERBOARD", label: "הצג דירוג סופי" };
+    if (showsLeaderboardAfter(questionIndex))
+      return { action: "SHOW_LEADERBOARD", label: "הצג דירוג" };
+    return { action: "NEXT_QUESTION", label: "לשאלה הבאה" };
+  };
   switch (phase) {
     case "LOBBY":
       return { action: "START_GAME", label: "התחל משחק" };
@@ -156,10 +175,11 @@ export function nextAction(
     case "QUESTION_LOCKED":
       return { action: "SHOW_RESULTS", label: "הצג תשובה ותוצאות" };
     case "SHOW_RESULTS":
-      if (isLast) return { action: "SHOW_LEADERBOARD", label: "הצג דירוג סופי" };
-      if (showsLeaderboardAfter(questionIndex))
-        return { action: "SHOW_LEADERBOARD", label: "הצג דירוג" };
-      return { action: "NEXT_QUESTION", label: "לשאלה הבאה" };
+      // If this question has an interesting fact, show it before the ranking.
+      if (hasFact) return { action: "SHOW_FACT", label: "הצג עובדה מעניינת" };
+      return afterResults();
+    case "SHOW_FACT":
+      return afterResults();
     case "LEADERBOARD":
       if (isLast) return { action: "FINISH", label: "סיום המשחק" };
       return { action: "NEXT_QUESTION", label: "לשאלה הבאה" };

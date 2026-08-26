@@ -104,6 +104,7 @@ function AdminPage() {
   const questionIndex = session?.current_question_index ?? 0;
   const totalLive = session?.total_questions ?? sessionQuestions.length;
   const liveQuestion = sessionQuestions.find((q) => q.id === questionIndex) ?? null;
+  const liveHasFact = !!(liveQuestion?.funFactEnabled && liveQuestion?.funFact && liveQuestion.funFact.trim());
   const { seconds } = useCountdown(
     session?.phase === "QUESTION_ACTIVE" ? session.question_ends_at : null,
     now,
@@ -352,6 +353,8 @@ function AdminPage() {
             correctAnswerId: q.correctAnswerId,
             explanation: q.explanation,
             isPlaceholder: false,
+            funFact: q.funFact ?? null,
+            funFactEnabled: q.funFactEnabled ?? false,
           },
         },
       });
@@ -645,7 +648,7 @@ function AdminPage() {
           <div className="flex flex-wrap items-center gap-2">
             {(() => {
               const step = session
-                ? nextAction(session.phase, session.current_question_index, totalLive)
+                ? nextAction(session.phase, session.current_question_index, totalLive, liveHasFact)
                 : null;
               return (
                 <button
@@ -1000,6 +1003,26 @@ function AdminPage() {
                     rows={2}
                     className="w-full rounded-xl border border-input bg-background/60 p-3"
                   />
+                </Field>
+
+                <Field label="עובדה מעניינת (מוצגת על המסך אחרי התשובות, לפני הדירוג)">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={q.funFactEnabled ?? false}
+                        onChange={(e) => patch(q.id, { funFactEnabled: e.target.checked })}
+                      />
+                      הצג עובדה מעניינת לשאלה זו
+                    </label>
+                    <textarea
+                      value={q.funFact ?? ""}
+                      onChange={(e) => patch(q.id, { funFact: e.target.value || null })}
+                      rows={2}
+                      placeholder="עובדה מעניינת שתוצג על המסך הגדול…"
+                      className="w-full rounded-xl border border-input bg-background/60 p-3"
+                    />
+                  </div>
                 </Field>
 
                 <Field label="תמונה למסך הגדול">
