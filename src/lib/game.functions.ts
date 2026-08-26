@@ -25,6 +25,7 @@ export const hostCommand = createServerFn({ method: "POST" })
           "START_GAME",
           "START_QUESTION",
           "SHOW_RESULTS",
+          "SHOW_FACT",
           "SHOW_LEADERBOARD",
           "NEXT_QUESTION",
           "FINISH",
