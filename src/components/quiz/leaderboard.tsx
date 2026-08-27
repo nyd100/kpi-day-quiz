@@ -71,7 +71,12 @@ export function LeaderboardList({
       </div>
       
       {rest.length > 0 && (
-        <ol className="grid gap-x-8 gap-y-3 sm:grid-cols-2 mt-4 bg-muted/30 p-6 rounded-3xl">
+        <ol
+          className="grid gap-x-8 gap-y-3 mt-4 bg-muted/30 p-6 rounded-3xl"
+          // Two columns, filled TOP-TO-BOTTOM so consecutive ranks read down each
+          // column (col 1: 4,5,6,7 · col 2: 8,9,10) instead of zig-zagging across rows.
+          style={{ gridAutoFlow: "column", gridTemplateRows: `repeat(${Math.ceil(rest.length / 2)}, auto)` }}
+        >
           {rest.map((player, index) => (
             <li
               key={player.id}

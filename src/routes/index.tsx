@@ -141,7 +141,7 @@ function JoinPage() {
         </form>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          פותח ע״י אגף נתונים ובינה מלאכותית
+          פותח בשיתוף אגף אסטרטגיה ואגף נתונים ובינה מלאכותית
         </p>
       </div>
     </main>

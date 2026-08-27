@@ -40,18 +40,18 @@ export function ParticipationStrip({
       </div>
 
       {recentNames.length > 0 && (
-        <div className="flex flex-1 flex-wrap items-center gap-2 overflow-hidden text-muted-foreground">
+        <div className="flex flex-1 flex-wrap items-center gap-2 overflow-hidden">
           <span className="font-semibold text-foreground shrink-0">המשיבים האחרונים:</span>
           {recentNames.map((name, i) => (
             <span
               key={i}
-              className="rounded-full bg-accent/10 px-2.5 py-0.5 text-accent-foreground font-medium animate-in zoom-in duration-300"
+              className="rounded-full border border-primary/30 bg-primary/15 px-3 py-0.5 font-bold text-foreground animate-in zoom-in duration-300"
             >
               {name}
             </span>
           ))}
           {moreCount > 0 && (
-            <span className="text-xs font-semibold">+{moreCount} נוספים</span>
+            <span className="text-xs font-semibold text-muted-foreground">+{moreCount} נוספים</span>
           )}
         </div>
       )}

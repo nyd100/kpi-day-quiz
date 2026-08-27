@@ -550,7 +550,10 @@ export async function questionTickImpl(sessionId: string) {
       const answered = new Set(answersSnap.docs.map(a => a.data().playerId));
 
       const plannedFor = (botId: string) =>
-        Math.floor(durationMs * (0.2 + seeded(`${botId}:${questionId}:time`) * 0.7));
+        // Spread simulated answers across ~5%–95% of the window (was 20%–90%),
+        // so even if the host closes the question after a few seconds there are
+        // already visible votes on screen instead of 0.
+        Math.floor(durationMs * (0.05 + seeded(`${botId}:${questionId}:time`) * 0.9));
 
       // Bots whose planned answer time has arrived and who haven't answered yet.
       const dueBots = all.filter(

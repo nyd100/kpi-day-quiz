@@ -257,7 +257,7 @@ function PresentPage() {
         </section>
       )}
 
-      {session && session.phase !== "LOBBY" && session.phase !== "GAME_COMPLETE" && question && (
+      {session && session.phase !== "LOBBY" && session.phase !== "GAME_COMPLETE" && session.phase !== "SHOW_FACT" && question && (
         // No overflow-hidden here: the correct-answer tile emphasis (ring +
         // slight scale + badge) renders OUTSIDE its box, and clipping it cut the
         // green ring at the screen edge. The 1080-tall canvas already gives the
@@ -312,14 +312,28 @@ function PresentPage() {
             </div>
           )}
 
-          {session.phase === "SHOW_FACT" && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
-              <span className="rounded-full bg-primary/15 px-6 py-2 text-2xl font-black text-primary">💡 עובדה מעניינת</span>
-              <p className="max-w-5xl text-4xl font-black leading-snug">{question.funFact}</p>
-            </div>
-          )}
-
           {session.phase === "LEADERBOARD" && <LeaderboardList players={players} limit={10} />}
+        </section>
+      )}
+
+      {/* Interesting fact: its own full-screen, animated focus moment (no lingering
+          question), sized big so the audience's attention snaps to it. */}
+      {session?.phase === "SHOW_FACT" && (
+        <section
+          key={question?.id ?? "fact"}
+          className="relative flex flex-1 flex-col items-center justify-center gap-10 p-10 text-center"
+        >
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[700px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-3xl" />
+          <div className="relative animate-in zoom-in-50 duration-500">
+            <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-primary/30 blur-2xl" />
+            <span className="text-8xl">💡</span>
+          </div>
+          <span className="animate-in fade-in slide-in-from-bottom-4 duration-700 rounded-full bg-gradient-accent px-10 py-3 text-3xl font-black text-primary-foreground shadow-2xl">
+            עובדה מעניינת
+          </span>
+          <p className="max-w-5xl animate-in fade-in zoom-in-95 duration-700 text-5xl font-black leading-tight">
+            {question?.funFact}
+          </p>
         </section>
       )}
 
@@ -341,6 +355,11 @@ function PresentPage() {
       >
         {sound ? "🔊" : "🔇"}
       </button>
+      {/* Discreet, centered credit — low opacity + pointer-events-none so it never
+          competes with or blocks the game graphics. */}
+      <p className="pointer-events-none fixed inset-x-0 bottom-2 z-10 text-center text-xs font-medium text-muted-foreground/40">
+        פותח בשיתוף אגף אסטרטגיה ואגף נתונים ובינה מלאכותית
+      </p>
     </div>
   );
 }
