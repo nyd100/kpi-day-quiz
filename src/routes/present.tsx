@@ -323,13 +323,13 @@ function PresentPage() {
         // not from any looping/flickering element on screen.
         <section
           key={question?.id ?? "fact"}
-          className="flex flex-1 flex-col items-center justify-center gap-8 p-10 text-center"
+          className="flex flex-1 flex-col items-center justify-center gap-8 p-10 text-center animate-in fade-in duration-500"
         >
-          <span className="animate-in zoom-in-75 duration-500 text-7xl">💡</span>
-          <span className="animate-in fade-in slide-in-from-bottom-3 duration-700 rounded-full bg-gradient-accent px-10 py-3 text-3xl font-black text-primary-foreground shadow-2xl">
+          <span className="text-7xl">💡</span>
+          <span className="rounded-full bg-gradient-accent px-10 py-3 text-3xl font-black text-primary-foreground shadow-2xl">
             עובדה מעניינת
           </span>
-          <p className="max-w-5xl animate-in fade-in slide-in-from-bottom-8 zoom-in-95 duration-1000 text-5xl font-black leading-tight text-foreground">
+          <p className="max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-700 text-5xl font-black leading-tight text-foreground">
             {question?.funFact}
           </p>
         </section>
