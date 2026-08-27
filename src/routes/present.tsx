@@ -319,19 +319,17 @@ function PresentPage() {
       {/* Interesting fact: its own full-screen, animated focus moment (no lingering
           question), sized big so the audience's attention snaps to it. */}
       {session?.phase === "SHOW_FACT" && (
+        // Focus comes purely from how the content ENTERS (one-shot zoom/slide/fade),
+        // not from any looping/flickering element on screen.
         <section
           key={question?.id ?? "fact"}
-          className="relative flex flex-1 flex-col items-center justify-center gap-10 p-10 text-center"
+          className="flex flex-1 flex-col items-center justify-center gap-8 p-10 text-center"
         >
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[700px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-3xl" />
-          <div className="relative animate-in zoom-in-50 duration-500">
-            <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-primary/30 blur-2xl" />
-            <span className="text-8xl">💡</span>
-          </div>
-          <span className="animate-in fade-in slide-in-from-bottom-4 duration-700 rounded-full bg-gradient-accent px-10 py-3 text-3xl font-black text-primary-foreground shadow-2xl">
+          <span className="animate-in zoom-in-75 duration-500 text-7xl">💡</span>
+          <span className="animate-in fade-in slide-in-from-bottom-3 duration-700 rounded-full bg-gradient-accent px-10 py-3 text-3xl font-black text-primary-foreground shadow-2xl">
             עובדה מעניינת
           </span>
-          <p className="max-w-5xl animate-in fade-in zoom-in-95 duration-700 text-5xl font-black leading-tight">
+          <p className="max-w-5xl animate-in fade-in slide-in-from-bottom-8 zoom-in-95 duration-1000 text-5xl font-black leading-tight text-foreground">
             {question?.funFact}
           </p>
         </section>

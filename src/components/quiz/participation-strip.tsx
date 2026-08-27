@@ -51,7 +51,10 @@ export function ParticipationStrip({
             </span>
           ))}
           {moreCount > 0 && (
-            <span className="text-xs font-semibold text-muted-foreground">+{moreCount} נוספים</span>
+            // Same look as the name pills (color/font/size) but without the border.
+            <span className="rounded-full bg-primary/15 px-3 py-0.5 font-bold text-foreground">
+              +{moreCount} נוספים
+            </span>
           )}
         </div>
       )}
