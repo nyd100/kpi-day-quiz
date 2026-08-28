@@ -29,6 +29,7 @@ export const hostCommand = createServerFn({ method: "POST" })
           "SHOW_LEADERBOARD",
           "NEXT_QUESTION",
           "FINISH",
+          "GO_BACK",
           "LOCK",
           "RESET",
           "DELETE",

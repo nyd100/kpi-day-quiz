@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import {
   computeScore,
   resolveAction,
+  resolveBack,
   normalizeName,
   validateName,
   validatePin,
@@ -214,7 +215,7 @@ export async function getActiveGameImpl(): Promise<{
   };
 }
 
-export type HostAction = GameAction | "LOCK" | "RESET" | "DELETE" | "ADD_BOTS" | "CLEAR_BOTS" | "TOGGLE_LATE_JOIN";
+export type HostAction = GameAction | "GO_BACK" | "LOCK" | "RESET" | "DELETE" | "ADD_BOTS" | "CLEAR_BOTS" | "TOGGLE_LATE_JOIN";
 const GAME_ACTIONS: GameAction[] = ["START_GAME", "START_QUESTION", "LOCK", "SHOW_RESULTS", "SHOW_FACT", "SHOW_LEADERBOARD", "NEXT_QUESTION", "FINISH"];
 
 const BOT_FIRST_NAMES = ["נועה","איתי","שירה","יונתן","מאיה","עומר","תמר","אורי","ליאור","רוני","דנה","אלון","הילה","גיא","יעל","אמיר"];
@@ -222,7 +223,7 @@ const BOT_FIRST_NAMES = ["נועה","איתי","שירה","יונתן","מאיה
 export async function hostCommandImpl(sessionId: string, action: HostAction, count?: number) {
   const session = await loadSession(sessionId);
 
-  if (GAME_ACTIONS.includes(action as GameAction)) {
+  if (GAME_ACTIONS.includes(action as GameAction) || action === "GO_BACK") {
     const noop = { phase: session.phase, questionIndex: session.currentQuestionIndex, noop: true };
 
     // START_GAME only makes sense from LOBBY; a repeat (another operator already
@@ -242,7 +243,12 @@ export async function hostCommandImpl(sessionId: string, action: HostAction, cou
       } catch { hasFact = false; }
     }
 
-    const next = resolveAction(action as GameAction, session.phase, session.currentQuestionIndex, totalQuestions, hasFact);
+    // GO_BACK reverses one screen (host advanced too fast); every other action
+    // advances via the forward state machine.
+    const next =
+      action === "GO_BACK"
+        ? resolveBack(session.phase, session.currentQuestionIndex, hasFact)
+        : resolveAction(action as GameAction, session.phase, session.currentQuestionIndex, totalQuestions, hasFact);
     // Illegal for the current phase almost always means another device already
     // advanced the game (multi-operator / auto-lock). Return a benign no-op so the
     // operator never sees a red "not possible in current state" toast — the live
@@ -256,7 +262,7 @@ export async function hostCommandImpl(sessionId: string, action: HostAction, cou
     };
 
     if (action === "START_GAME") patch.totalQuestions = totalQuestions;
-    if (next.phase === "QUESTION_INTRO") {
+    if (next.phase === "QUESTION_INTRO" || next.phase === "LOBBY") {
       patch.questionStartedAt = null;
       patch.questionEndsAt = null;
       patch.revealedAnswerId = null;

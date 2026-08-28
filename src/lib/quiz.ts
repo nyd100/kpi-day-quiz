@@ -188,6 +188,45 @@ export function nextAction(
   }
 }
 
+/**
+ * One logical step BACKWARD, for a host who advanced too fast and wants to
+ * return to the previous screen. `hasFact` is whether the CURRENT question has an
+ * enabled interesting fact (so LEADERBOARD steps back onto the fact, not the raw
+ * results, when there is one). Returns null when there is nowhere to go back to
+ * (i.e. LOBBY). Re-advancing forward from the returned state is always valid.
+ */
+export function resolveBack(
+  phase: GamePhase,
+  questionIndex: number,
+  hasFact: boolean = false,
+): Transition | null {
+  switch (phase) {
+    case "QUESTION_INTRO":
+      // Back to the previous question's results (or the lobby before Q1).
+      return questionIndex <= 1
+        ? { phase: "LOBBY", questionIndex: 0 }
+        : { phase: "SHOW_RESULTS", questionIndex: questionIndex - 1 };
+    case "QUESTION_ACTIVE":
+      return { phase: "QUESTION_INTRO", questionIndex };
+    case "QUESTION_LOCKED":
+      // Re-open the question (a fresh timer is set server-side).
+      return { phase: "QUESTION_ACTIVE", questionIndex };
+    case "SHOW_RESULTS":
+      // Re-show the question + answers with results hidden again.
+      return { phase: "QUESTION_LOCKED", questionIndex };
+    case "SHOW_FACT":
+      return { phase: "SHOW_RESULTS", questionIndex };
+    case "LEADERBOARD":
+      return hasFact
+        ? { phase: "SHOW_FACT", questionIndex }
+        : { phase: "SHOW_RESULTS", questionIndex };
+    case "GAME_COMPLETE":
+      return { phase: "LEADERBOARD", questionIndex };
+    default:
+      return null; // LOBBY — nothing before it
+  }
+}
+
 
 /** Scoring: fast correct ~1000, last-second correct ~500, wrong/timeout 0. */
 export function computeScore(

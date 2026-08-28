@@ -359,7 +359,7 @@ function PresentPage() {
       </button>
       {/* Discreet, centered credit — low opacity + pointer-events-none so it never
           competes with or blocks the game graphics. */}
-      <p className="pointer-events-none fixed inset-x-0 bottom-2 z-10 text-center text-xs font-medium text-muted-foreground/40">
+      <p className="pointer-events-none fixed inset-x-0 bottom-2 z-10 text-center text-xs text-muted-foreground">
         פותח בשיתוף אגף אסטרטגיה ואגף נתונים ובינה מלאכותית
       </p>
     </div>

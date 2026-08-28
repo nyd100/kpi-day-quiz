@@ -48,6 +48,7 @@ import {
 
 type HostControlAction =
   | GameAction
+  | "GO_BACK"
   | "RESET"
   | "DELETE"
   | "ADD_BOTS"
@@ -646,6 +647,15 @@ function AdminPage() {
 
           {/* Flow controls — the main actions the operator clicks during the game */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Step back one screen — if the host advanced too fast. */}
+            <button
+              onClick={() => void run("GO_BACK")}
+              disabled={busy || !session || session.phase === "LOBBY"}
+              title="חזרה למסך הקודם"
+              className="h-14 rounded-xl border border-input px-4 text-lg font-bold disabled:opacity-40"
+            >
+              → חזרה
+            </button>
             {(() => {
               const step = session
                 ? nextAction(session.phase, session.current_question_index, totalLive, liveHasFact)
