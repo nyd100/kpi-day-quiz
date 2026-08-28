@@ -323,15 +323,19 @@ function PresentPage() {
         // not from any looping/flickering element on screen.
         <section
           key={question?.id ?? "fact"}
-          className="flex flex-1 flex-col items-center justify-center gap-8 p-10 text-center animate-in fade-in duration-500"
+          className="flex flex-1 flex-col items-center justify-center p-10"
         >
-          <span className="text-7xl">💡</span>
-          <span className="rounded-full bg-gradient-accent px-10 py-3 text-3xl font-black text-primary-foreground shadow-2xl">
-            עובדה מעניינת
-          </span>
-          <p className="max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-700 text-5xl font-black leading-tight text-foreground">
-            {question?.funFact}
-          </p>
+          {/* A distinctly framed card that grows small -> large as it enters, so it
+              pops and grabs the room's focus (one-shot, nothing looping). */}
+          <div className="flex max-w-5xl flex-col items-center gap-6 rounded-[2.5rem] border-4 border-primary bg-primary/5 px-16 py-12 text-center shadow-2xl shadow-primary/25 animate-in fade-in zoom-in-50 duration-700">
+            <span className="text-8xl">💡</span>
+            <span className="rounded-full bg-gradient-accent px-8 py-2 text-2xl font-black text-primary-foreground shadow-lg">
+              עובדה מעניינת
+            </span>
+            <p className="text-5xl font-black leading-tight text-foreground">
+              {question?.funFact}
+            </p>
+          </div>
         </section>
       )}
 
