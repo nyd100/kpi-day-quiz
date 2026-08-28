@@ -274,6 +274,13 @@ export async function hostCommandImpl(sessionId: string, action: HostAction, cou
       patch.questionEndsAt = new Date(now + question.durationSeconds * 1000).toISOString();
       patch.revealedAnswerId = null;
     }
+    // Stepping BACK to a locked question: the question's timer has already
+    // expired, so push the deadline far into the future — otherwise the
+    // time-based auto-advance would instantly bounce it forward to results
+    // again. The host stays in manual control from here.
+    if (action === "GO_BACK" && next.phase === "QUESTION_LOCKED") {
+      patch.questionEndsAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    }
     if (next.phase === "SHOW_RESULTS") {
       patch.revealedAnswerId = await loadKey(session.id, next.questionIndex);
     }
