@@ -85,18 +85,40 @@ export function useServerClock() {
   return useCallback(() => Date.now() + offset, [offset]);
 }
 
-/** Ensure a Firebase user exists for Firestore reads, without clobbering a
- *  persisted account. We wait for onAuthStateChanged rather than checking
- *  auth.currentUser synchronously: on load currentUser is momentarily null while
- *  Firebase restores the persisted session, and signing in anonymously in that
- *  window would replace a real (Google/admin) login and log the operator out. */
+/**
+ * Sign in anonymously ONLY when there is genuinely no user — after a short
+ * settle delay plus a re-check. Firebase persists auth in localStorage, which is
+ * SHARED across tabs of the same origin: if a player/present tab signed in
+ * anonymously the instant it loaded, it would overwrite the operator's Google
+ * session in that shared storage and log the admin console out in another tab.
+ * The delay lets a real (Google) session that is restoring from persistence or
+ * syncing in from another tab appear first, so anonymous auth never clobbers it.
+ * Returns a cancel function.
+ */
+function anonSignInAfterSettle(auth: ReturnType<typeof getAuth>): () => void {
+  const timer = setTimeout(() => {
+    if (!auth.currentUser) signInAnonymously(auth).catch(console.error);
+  }, 1000);
+  return () => clearTimeout(timer);
+}
+
+/** Ensure a Firebase user exists for Firestore reads without ever clobbering a
+ *  real (Google/admin) session — anonymous sign-in is deferred (see above). */
 function useEnsureAuth() {
   useEffect(() => {
     const auth = getAuth();
+    let cancelAnon: (() => void) | null = null;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) signInAnonymously(auth).catch(console.error);
+      if (user) {
+        if (cancelAnon) { cancelAnon(); cancelAnon = null; }
+        return;
+      }
+      if (!cancelAnon) cancelAnon = anonSignInAfterSettle(auth);
     });
-    return unsubscribe;
+    return () => {
+      if (cancelAnon) cancelAnon();
+      unsubscribe();
+    };
   }, []);
 }
 
@@ -144,16 +166,20 @@ export function useActiveGame() {
   useEffect(() => {
     const auth = getAuth();
     let unsubSnap: (() => void) | null = null;
+    let cancelAnon: (() => void) | null = null;
 
     // Subscribe to the query only once a Firebase user exists. Subscribing
     // before auth is ready (a genuinely fresh device with no cached session)
     // gets permission-denied, which permanently kills the onSnapshot listener —
-    // so the active game would never appear until a manual reload.
+    // so the active game would never appear until a manual reload. Anonymous
+    // sign-in is deferred (see anonSignInAfterSettle) so it never clobbers the
+    // operator's Google session in shared localStorage.
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
-        signInAnonymously(auth).catch(console.error);
+        if (!cancelAnon) cancelAnon = anonSignInAfterSettle(auth);
         return;
       }
+      if (cancelAnon) { cancelAnon(); cancelAnon = null; }
       if (unsubSnap) return; // already listening
       unsubSnap = subscribeWithRetry(
         () => query(collection(db, "sessions"), where("status", "==", "ACTIVE")),
@@ -172,6 +198,7 @@ export function useActiveGame() {
     });
 
     return () => {
+      if (cancelAnon) cancelAnon();
       unsubAuth();
       if (unsubSnap) unsubSnap();
     };
