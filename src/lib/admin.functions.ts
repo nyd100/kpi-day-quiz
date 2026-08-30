@@ -253,6 +253,21 @@ export const adminSetPresentAspect = createServerFn({ method: "POST" })
     }
   });
 
+export const adminSetAnswerMarker = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ token, marker: z.enum(["letter", "number", "pattern"]) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { assertAdmin, setAnswerMarkerImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      await assertAdmin(data.token);
+      return await setAnswerMarkerImpl(data.marker);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "שמירת סימון התשובות נכשלה.");
+    }
+  });
+
 export const adminUploadLogo = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z

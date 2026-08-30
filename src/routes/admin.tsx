@@ -21,6 +21,7 @@ import {
   adminSetDefaultDuration,
   adminSetAllQuestionsDuration,
   adminSetPresentAspect,
+  adminSetAnswerMarker,
   adminSetQuestionEnabled,
   adminUploadLogo,
   adminUploadQuestionImage,
@@ -43,8 +44,10 @@ import {
   TOTAL_QUESTIONS,
   nextAction,
   type AnswerId,
+  type AnswerMarkerMode,
   type GameAction,
 } from "@/lib/quiz";
+import { AnswerMarker } from "@/components/quiz/answer-marker";
 
 type HostControlAction =
   | GameAction
@@ -96,6 +99,7 @@ function AdminPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [defaultDuration, setDefaultDuration] = useState(30);
   const [presentAspect, setPresentAspect] = useState<"16:9" | "4:3">("16:9");
+  const [answerMarker, setAnswerMarker] = useState<AnswerMarkerMode>("letter");
 
   // ------------------------------------------------ live control of the game
   const now = useServerClock();
@@ -268,6 +272,8 @@ function AdminPage() {
     setLogoUrl(settings.logoUrl);
     setDefaultDuration(settings.defaultDurationSeconds);
     setPresentAspect(settings.presentAspect === "4:3" ? "4:3" : "16:9");
+    // settings.answerMarker is already validated to the union by the server.
+    setAnswerMarker(settings.answerMarker);
   };
 
   const changePresentAspect = async (aspect: "16:9" | "4:3") => {
@@ -281,6 +287,18 @@ function AdminPage() {
     } catch (error) {
       setPresentAspect(previous);
       toast.error(error instanceof Error ? error.message : "שמירת יחס המסך נכשלה.");
+    }
+  };
+
+  const changeAnswerMarker = async (marker: AnswerMarkerMode) => {
+    const previous = answerMarker;
+    setAnswerMarker(marker);
+    try {
+      const t = await freshToken();
+      await adminSetAnswerMarker({ data: { token: t, marker } });
+    } catch (error) {
+      setAnswerMarker(previous);
+      toast.error(error instanceof Error ? error.message : "שמירת סימון התשובות נכשלה.");
     }
   };
 
@@ -787,6 +805,48 @@ function AdminPage() {
               }`}
             >
               {a}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="surface-card mb-6 space-y-3 p-5">
+        <h2 className="text-lg font-bold">סימון התשובות</h2>
+        <p className="text-sm text-muted-foreground">
+          כיצד לסמן כל תשובה מלבד הצבע — כדי שהזהות לא תישען על צבע בלבד. הבחירה חלה על מסך
+          השחקן, המסך הגדול ומסך התוצאות.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(
+            [
+              { mode: "letter", label: "אותיות" },
+              { mode: "number", label: "מספרים" },
+              { mode: "pattern", label: "דוגמאות" },
+            ] as const
+          ).map(({ mode, label }) => (
+            <button
+              key={mode}
+              onClick={() => void changeAnswerMarker(mode)}
+              disabled={busy}
+              aria-pressed={answerMarker === mode}
+              className={`flex flex-col items-center gap-3 rounded-xl border p-4 transition-colors disabled:opacity-40 ${
+                answerMarker === mode
+                  ? "border-transparent bg-gradient-accent text-primary-foreground"
+                  : "border-input hover:bg-muted/40"
+              }`}
+            >
+              <span className="text-sm font-bold">{label}</span>
+              <span className="flex gap-2">
+                {ANSWER_IDS.map((id) => (
+                  <span
+                    key={id}
+                    className="grid size-8 place-items-center overflow-hidden rounded-lg"
+                    style={{ backgroundColor: `var(--answer-${id.toLowerCase()})` }}
+                  >
+                    <AnswerMarker id={id} mode={mode} size="player" />
+                  </span>
+                ))}
+              </span>
             </button>
           ))}
         </div>

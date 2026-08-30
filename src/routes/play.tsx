@@ -9,6 +9,7 @@ import { LeaderboardList } from "@/components/quiz/leaderboard";
 import { playerState, submitAnswer } from "@/lib/game.functions";
 import {
   playerStorage,
+  useAnswerMarker,
   useCountdown,
   useHydrated,
   useLivePlayers,
@@ -50,6 +51,7 @@ function PlayPage() {
   const now = useServerClock();
   const { session, connection } = useLiveSession(identity?.sessionId ?? null);
   const players = useLivePlayers(identity?.sessionId ?? null);
+  const markerMode = useAnswerMarker();
 
   useEffect(() => {
     const stored = playerStorage.get();
@@ -249,6 +251,7 @@ function PlayPage() {
                   !!answeredId || !!pending || session.phase !== "QUESTION_ACTIVE" || seconds <= 0
                 }
                 onSelect={() => void choose(answer.id)}
+                markerMode={markerMode}
               />
             ))}
           </div>

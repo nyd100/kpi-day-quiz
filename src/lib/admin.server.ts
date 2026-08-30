@@ -2,7 +2,8 @@
 import { adminDb, adminStorage, adminAuth } from "@/integrations/firebase/admin";
 import { GameError } from "@/lib/game.server";
 import { DEFAULT_QUESTIONS } from "@/lib/default-questions";
-import type { AnswerId } from "@/lib/quiz";
+import type { AnswerId, AnswerMarkerMode } from "@/lib/quiz";
+import { isAnswerMarkerMode } from "@/lib/quiz";
 import * as crypto from "crypto";
 
 const BUCKET = "question-images";
@@ -390,6 +391,7 @@ export const SHOW_INSIGHTS_KEY = "show_insights";
 export const FALLBACK_DURATION = 30;
 export const ASPECT_KEY = "present_aspect";
 export const FALLBACK_ASPECT = "16:9";
+export const MARKER_KEY = "answer_marker";
 
 export async function getSettingsImpl() {
   try {
@@ -402,13 +404,15 @@ export async function getSettingsImpl() {
       defaultDurationSeconds: Number.isFinite(parsed) && parsed > 0 ? parsed : FALLBACK_DURATION,
       showInsights: map[SHOW_INSIGHTS_KEY] !== false,
       presentAspect: map[ASPECT_KEY] === "4:3" ? "4:3" : "16:9",
+      answerMarker: isAnswerMarkerMode(map[MARKER_KEY]) ? map[MARKER_KEY] : "letter",
     };
   } catch (error) {
     return {
       logoUrl: null,
       defaultDurationSeconds: FALLBACK_DURATION,
       showInsights: true,
-      presentAspect: "16:9",
+      presentAspect: "16:9" as const,
+      answerMarker: "letter" as AnswerMarkerMode,
     };
   }
 }
@@ -459,6 +463,14 @@ export async function setPresentAspectImpl(aspect: "16:9" | "4:3") {
     { merge: true }
   );
   return { presentAspect: aspect };
+}
+
+export async function setAnswerMarkerImpl(marker: AnswerMarkerMode) {
+  await adminDb.collection("settings").doc("global").set(
+    { [MARKER_KEY]: marker, updated_at: new Date().toISOString() },
+    { merge: true }
+  );
+  return { answerMarker: marker };
 }
 
 export async function uploadLogoImpl(input: {

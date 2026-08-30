@@ -1,4 +1,5 @@
-import { ANSWER_META, type AnswerId } from "@/lib/quiz";
+import { AnswerMarker, markerLabel } from "./answer-marker";
+import { ANSWER_META, type AnswerId, type AnswerMarkerMode } from "@/lib/quiz";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
   dimmed?: boolean;
   correct?: boolean;
   size?: "player" | "stage";
+  markerMode?: AnswerMarkerMode;
 };
 
 export function AnswerTile({
@@ -21,6 +23,7 @@ export function AnswerTile({
   dimmed,
   correct,
   size = "player",
+  markerMode = "letter",
 }: Props) {
   const meta = ANSWER_META[id];
   const isButton = typeof onSelect === "function";
@@ -29,7 +32,7 @@ export function AnswerTile({
   return (
     <Comp
       {...(isButton ? { type: "button" as const, onClick: onSelect, disabled } : {})}
-      aria-label={`תשובה ${meta.letter} · ${text}`}
+      aria-label={`תשובה ${markerLabel(id, markerMode)} · ${text}`}
       aria-pressed={isButton ? !!selected : undefined}
       style={{ backgroundColor: meta.color }}
       className={cn(
@@ -45,11 +48,11 @@ export function AnswerTile({
       <span
         aria-hidden="true"
         className={cn(
-          "grid shrink-0 place-items-center rounded-xl bg-foreground/15 font-black text-primary-foreground",
-          size === "player" ? "size-11 text-xl" : "size-14 text-3xl",
+          "grid shrink-0 place-items-center overflow-hidden rounded-xl bg-foreground/15",
+          size === "player" ? "size-11" : "size-14",
         )}
       >
-        {meta.letter}
+        <AnswerMarker id={id} mode={markerMode} size={size} />
       </span>
       <span
         className={cn(

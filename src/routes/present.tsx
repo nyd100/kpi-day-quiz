@@ -12,6 +12,7 @@ import { disableSound, enableSound, isSoundEnabled, playCue } from "@/lib/sound"
 import { autoAdvance } from "@/lib/game.functions";
 import {
   useActiveGame,
+  useAnswerMarker,
   useAppSetting,
   useCountdown,
   useHydrated,
@@ -49,6 +50,7 @@ function PresentPage() {
   const players = useLivePlayers(active?.sessionId ?? null);
   const logoUrl = useAppSetting("org_logo_url");
   const aspectSetting = useAppSetting("present_aspect");
+  const markerMode = useAnswerMarker();
 
   const questionIndex = session?.current_question_index ?? 0;
   const totalQuestions = session?.total_questions ?? questions.length;
@@ -291,7 +293,7 @@ function PresentPage() {
           {(session.phase === "QUESTION_ACTIVE" || session.phase === "QUESTION_LOCKED") && (
             <div className="grid flex-1 gap-4 sm:grid-cols-2">
               {question.answers.map((a) => (
-                <AnswerTile key={a.id} id={a.id} text={a.text} size="stage" />
+                <AnswerTile key={a.id} id={a.id} text={a.text} size="stage" markerMode={markerMode} />
               ))}
             </div>
           )}
@@ -308,6 +310,7 @@ function PresentPage() {
                 stats={stats}
                 answers={question.answers}
                 correctAnswerId={(session.revealed_answer_id as AnswerId | null) ?? null}
+                markerMode={markerMode}
               />
             </div>
           )}

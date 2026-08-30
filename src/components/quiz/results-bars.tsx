@@ -1,15 +1,24 @@
 import { useEffect, useState } from "react";
-import { ANSWER_IDS, ANSWER_META, type AnswerId, type QuestionStatistics } from "@/lib/quiz";
+import { AnswerMarker } from "./answer-marker";
+import {
+  ANSWER_IDS,
+  ANSWER_META,
+  type AnswerId,
+  type AnswerMarkerMode,
+  type QuestionStatistics,
+} from "@/lib/quiz";
 import { cn } from "@/lib/utils";
 
 export function ResultsBars({
   stats,
   answers,
   correctAnswerId,
+  markerMode = "letter",
 }: {
   stats: QuestionStatistics;
   answers: { id: AnswerId; text: string }[];
   correctAnswerId: AnswerId | null;
+  markerMode?: AnswerMarkerMode;
 }) {
   const [revealPhase, setRevealPhase] = useState(0);
 
@@ -55,10 +64,10 @@ export function ResultsBars({
               <div className="flex items-start gap-4">
                 <span
                   aria-hidden="true"
-                  className="grid size-12 shrink-0 place-items-center rounded-xl text-2xl font-black text-primary-foreground transition-all duration-500"
+                  className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl transition-all duration-500"
                   style={{ backgroundColor: emphasize ? "var(--success)" : meta.color }}
                 >
-                  {meta.letter}
+                  <AnswerMarker id={id} mode={markerMode} size="results" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-3">

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { db } from "@/integrations/firebase/client";
 import { collection, doc, onSnapshot, query, orderBy, where, getDocs, getDoc } from "firebase/firestore";
 import { getServerTime } from "@/lib/game.functions";
-import type { AnswerRow, PlayerRow, QuizQuestion, SessionRow } from "@/lib/quiz";
+import type { AnswerMarkerMode, AnswerRow, PlayerRow, QuizQuestion, SessionRow } from "@/lib/quiz";
+import { isAnswerMarkerMode } from "@/lib/quiz";
 import { signInAnonymously, getAuth, onAuthStateChanged } from "firebase/auth";
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "offline";
@@ -424,6 +425,12 @@ export function useAppSetting(key: string) {
   }, [key]);
   
   return value;
+}
+
+/** The operator-selected answer-marker mode ("letter" default). */
+export function useAnswerMarker(): AnswerMarkerMode {
+  const raw = useAppSetting("answer_marker");
+  return isAnswerMarkerMode(raw) ? raw : "letter";
 }
 
 // ------------------------------------------------------------ local identity

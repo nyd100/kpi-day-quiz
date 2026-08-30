@@ -70,16 +70,31 @@ export type AnswerRow = {
 };
 
 /**
- * Identity system: position + colour + Hebrew letter + text (never colour alone).
- * A lettered badge (א/ב/ג/ד) reads as a professional multiple-choice marker and
- * deliberately avoids the coloured-shape convention of consumer quiz apps.
+ * How each answer is marked besides its colour. The operator picks one mode for
+ * the whole quiz (admin console). Every mode is a redundant, non-colour identity
+ * so an answer is never distinguished by colour alone:
+ *  - "letter"  → Hebrew letter badge (א/ב/ג/ד)
+ *  - "number"  → numeral badge (1/2/3/4)
+ *  - "pattern" → a distinct fill texture per answer (solid/stripes/dots/grid),
+ *                a deliberately non-shape marker unlike consumer quiz apps.
  */
-export const ANSWER_META: Record<AnswerId, { color: string; letter: string }> = {
-  A: { color: "var(--answer-a)", letter: "א" },
-  B: { color: "var(--answer-b)", letter: "ב" },
-  C: { color: "var(--answer-c)", letter: "ג" },
-  D: { color: "var(--answer-d)", letter: "ד" },
+export type AnswerMarkerMode = "letter" | "number" | "pattern";
+export type AnswerPattern = "solid" | "diagonal" | "dots" | "grid";
+
+/** Identity system: position + colour + marker + text (never colour alone). */
+export const ANSWER_META: Record<
+  AnswerId,
+  { color: string; letter: string; numeral: string; pattern: AnswerPattern; patternLabel: string }
+> = {
+  A: { color: "var(--answer-a)", letter: "א", numeral: "1", pattern: "solid", patternLabel: "מלא" },
+  B: { color: "var(--answer-b)", letter: "ב", numeral: "2", pattern: "diagonal", patternLabel: "פסים" },
+  C: { color: "var(--answer-c)", letter: "ג", numeral: "3", pattern: "dots", patternLabel: "נקודות" },
+  D: { color: "var(--answer-d)", letter: "ד", numeral: "4", pattern: "grid", patternLabel: "רשת" },
 };
+
+export function isAnswerMarkerMode(v: unknown): v is AnswerMarkerMode {
+  return v === "letter" || v === "number" || v === "pattern";
+}
 
 export const CATEGORY_LABEL: Record<QuestionCategory, string> = {
   OUTPUT: "תפוקה · OUTPUT",
