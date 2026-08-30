@@ -96,6 +96,20 @@ export function isAnswerMarkerMode(v: unknown): v is AnswerMarkerMode {
   return v === "letter" || v === "number" || v === "pattern";
 }
 
+/**
+ * Presenter sound packs. The operator picks one in the admin console; it changes
+ * the character of every big-screen cue (countdown, reveal, fact, winners, …).
+ */
+export type SoundPackId = "cinematic" | "classic" | "arcade";
+export const SOUND_PACKS: { id: SoundPackId; label: string; description: string }[] = [
+  { id: "cinematic", label: "קולנועי", description: "דרמטי, בּאסים עמוקים, טריילר" },
+  { id: "classic", label: "קלאסי", description: "נקי ומאוזן" },
+  { id: "arcade", label: "ארקייד", description: "רטרו 8־ביט, שמח" },
+];
+export function isSoundPackId(v: unknown): v is SoundPackId {
+  return v === "cinematic" || v === "classic" || v === "arcade";
+}
+
 export const CATEGORY_LABEL: Record<QuestionCategory, string> = {
   OUTPUT: "תפוקה · OUTPUT",
   OUTCOME: "אימפקט · OUTCOME",

@@ -2,8 +2,8 @@
 import { adminDb, adminStorage, adminAuth } from "@/integrations/firebase/admin";
 import { GameError } from "@/lib/game.server";
 import { DEFAULT_QUESTIONS } from "@/lib/default-questions";
-import type { AnswerId, AnswerMarkerMode } from "@/lib/quiz";
-import { isAnswerMarkerMode } from "@/lib/quiz";
+import type { AnswerId, AnswerMarkerMode, SoundPackId } from "@/lib/quiz";
+import { isAnswerMarkerMode, isSoundPackId } from "@/lib/quiz";
 import * as crypto from "crypto";
 
 const BUCKET = "question-images";
@@ -392,6 +392,7 @@ export const FALLBACK_DURATION = 30;
 export const ASPECT_KEY = "present_aspect";
 export const FALLBACK_ASPECT = "16:9";
 export const MARKER_KEY = "answer_marker";
+export const SOUND_PACK_KEY = "sound_pack";
 
 export async function getSettingsImpl() {
   try {
@@ -405,6 +406,7 @@ export async function getSettingsImpl() {
       showInsights: map[SHOW_INSIGHTS_KEY] !== false,
       presentAspect: map[ASPECT_KEY] === "4:3" ? "4:3" : "16:9",
       answerMarker: isAnswerMarkerMode(map[MARKER_KEY]) ? map[MARKER_KEY] : "letter",
+      soundPack: isSoundPackId(map[SOUND_PACK_KEY]) ? map[SOUND_PACK_KEY] : "cinematic",
     };
   } catch (error) {
     return {
@@ -413,6 +415,7 @@ export async function getSettingsImpl() {
       showInsights: true,
       presentAspect: "16:9" as const,
       answerMarker: "letter" as AnswerMarkerMode,
+      soundPack: "cinematic" as SoundPackId,
     };
   }
 }
@@ -471,6 +474,14 @@ export async function setAnswerMarkerImpl(marker: AnswerMarkerMode) {
     { merge: true }
   );
   return { answerMarker: marker };
+}
+
+export async function setSoundPackImpl(pack: SoundPackId) {
+  await adminDb.collection("settings").doc("global").set(
+    { [SOUND_PACK_KEY]: pack, updated_at: new Date().toISOString() },
+    { merge: true }
+  );
+  return { soundPack: pack };
 }
 
 export async function uploadLogoImpl(input: {

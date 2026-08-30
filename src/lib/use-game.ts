@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { db } from "@/integrations/firebase/client";
 import { collection, doc, onSnapshot, query, orderBy, where, getDocs, getDoc } from "firebase/firestore";
 import { getServerTime } from "@/lib/game.functions";
-import type { AnswerMarkerMode, AnswerRow, PlayerRow, QuizQuestion, SessionRow } from "@/lib/quiz";
-import { isAnswerMarkerMode } from "@/lib/quiz";
+import type { AnswerMarkerMode, AnswerRow, PlayerRow, QuizQuestion, SessionRow, SoundPackId } from "@/lib/quiz";
+import { isAnswerMarkerMode, isSoundPackId } from "@/lib/quiz";
 import { signInAnonymously, getAuth, onAuthStateChanged } from "firebase/auth";
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "offline";
@@ -431,6 +431,12 @@ export function useAppSetting(key: string) {
 export function useAnswerMarker(): AnswerMarkerMode {
   const raw = useAppSetting("answer_marker");
   return isAnswerMarkerMode(raw) ? raw : "letter";
+}
+
+/** The operator-selected presenter sound pack ("cinematic" default). */
+export function useSoundPack(): SoundPackId {
+  const raw = useAppSetting("sound_pack");
+  return isSoundPackId(raw) ? raw : "cinematic";
 }
 
 // ------------------------------------------------------------ local identity

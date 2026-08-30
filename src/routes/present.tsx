@@ -8,11 +8,12 @@ import { Countdown } from "@/components/quiz/countdown";
 import { LeaderboardList, Podium } from "@/components/quiz/leaderboard";
 import { ParticipationStrip } from "@/components/quiz/participation-strip";
 import { ResultsBars } from "@/components/quiz/results-bars";
-import { disableSound, enableSound, isSoundEnabled, playCue } from "@/lib/sound";
+import { disableSound, enableSound, isSoundEnabled, playCue, setSoundPack } from "@/lib/sound";
 import { autoAdvance } from "@/lib/game.functions";
 import {
   useActiveGame,
   useAnswerMarker,
+  useSoundPack,
   useAppSetting,
   useCountdown,
   useHydrated,
@@ -51,6 +52,12 @@ function PresentPage() {
   const logoUrl = useAppSetting("org_logo_url");
   const aspectSetting = useAppSetting("present_aspect");
   const markerMode = useAnswerMarker();
+  const soundPack = useSoundPack();
+
+  // Keep the synth engine in sync with the operator-selected pack.
+  useEffect(() => {
+    setSoundPack(soundPack);
+  }, [soundPack]);
 
   const questionIndex = session?.current_question_index ?? 0;
   const totalQuestions = session?.total_questions ?? questions.length;
@@ -85,6 +92,7 @@ function PresentPage() {
     if (phase === "QUESTION_ACTIVE") playCue("questionStart");
     if (phase === "QUESTION_LOCKED") playCue("timeUp");
     if (phase === "SHOW_RESULTS") playCue("reveal");
+    if (phase === "SHOW_FACT") playCue("fact");
     if (phase === "LEADERBOARD") {
       playCue("leaderboard");
       if (!prefersReducedMotion) {
@@ -115,7 +123,7 @@ function PresentPage() {
     if (session?.phase !== "QUESTION_ACTIVE") return;
     if (seconds > 0 && seconds <= 5 && seconds !== lastTick.current) {
       lastTick.current = seconds;
-      playCue("tick");
+      playCue("tick", { remaining: seconds });
     }
     if (seconds > 5) lastTick.current = 0;
   }, [seconds, session?.phase]);

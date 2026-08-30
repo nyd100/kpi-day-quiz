@@ -22,6 +22,7 @@ import {
   adminSetAllQuestionsDuration,
   adminSetPresentAspect,
   adminSetAnswerMarker,
+  adminSetSoundPack,
   adminSetQuestionEnabled,
   adminUploadLogo,
   adminUploadQuestionImage,
@@ -42,12 +43,15 @@ import {
   ANSWER_IDS,
   CATEGORY_LABEL,
   TOTAL_QUESTIONS,
+  SOUND_PACKS,
   nextAction,
   type AnswerId,
   type AnswerMarkerMode,
   type GameAction,
+  type SoundPackId,
 } from "@/lib/quiz";
 import { AnswerMarker } from "@/components/quiz/answer-marker";
+import { enableSound, playCue, setSoundPack } from "@/lib/sound";
 
 type HostControlAction =
   | GameAction
@@ -100,6 +104,7 @@ function AdminPage() {
   const [defaultDuration, setDefaultDuration] = useState(30);
   const [presentAspect, setPresentAspect] = useState<"16:9" | "4:3">("16:9");
   const [answerMarker, setAnswerMarker] = useState<AnswerMarkerMode>("letter");
+  const [soundPack, setSoundPackState] = useState<SoundPackId>("cinematic");
 
   // ------------------------------------------------ live control of the game
   const now = useServerClock();
@@ -274,6 +279,7 @@ function AdminPage() {
     setPresentAspect(settings.presentAspect === "4:3" ? "4:3" : "16:9");
     // settings.answerMarker is already validated to the union by the server.
     setAnswerMarker(settings.answerMarker);
+    setSoundPackState(settings.soundPack);
   };
 
   const changePresentAspect = async (aspect: "16:9" | "4:3") => {
@@ -300,6 +306,29 @@ function AdminPage() {
       setAnswerMarker(previous);
       toast.error(error instanceof Error ? error.message : "שמירת סימון התשובות נכשלה.");
     }
+  };
+
+  const changeSoundPack = async (pack: SoundPackId) => {
+    const previous = soundPack;
+    setSoundPackState(pack);
+    try {
+      const t = await freshToken();
+      await adminSetSoundPack({ data: { token: t, pack } });
+    } catch (error) {
+      setSoundPackState(previous);
+      toast.error(error instanceof Error ? error.message : "שמירת חבילת הצלילים נכשלה.");
+    }
+  };
+
+  // Preview a pack from the (user-gesture) click: enable audio, switch the engine
+  // to that pack and play its two signature cues. Presenter game sound is
+  // unaffected — the big screen reads the pack from the saved setting.
+  const previewSoundPack = async (pack: SoundPackId) => {
+    const ok = await enableSound();
+    if (!ok) return;
+    setSoundPack(pack);
+    playCue("reveal");
+    window.setTimeout(() => playCue("finale"), 1100);
   };
 
   const changeDefaultDuration = async (seconds: number) => {
@@ -848,6 +877,54 @@ function AdminPage() {
                 ))}
               </span>
             </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="surface-card mb-6 space-y-3 p-5">
+        <h2 className="text-lg font-bold">חבילת צלילים (מסך התצוגה)</h2>
+        <p className="text-sm text-muted-foreground">
+          אופי הצלילים במסך הגדול — ספירה לאחור, חשיפת התשובה, עובדה מעניינת, מנצחים ועוד.
+          לחצו על ▶ כדי לשמוע דוגמה לפני שמירה.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {SOUND_PACKS.map(({ id, label, description }) => (
+            <div
+              key={id}
+              className={`flex flex-col gap-2 rounded-xl border p-4 transition-colors ${
+                soundPack === id
+                  ? "border-transparent bg-gradient-accent text-primary-foreground"
+                  : "border-input hover:bg-muted/40"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => void changeSoundPack(id)}
+                  disabled={busy}
+                  aria-pressed={soundPack === id}
+                  className="text-start text-sm font-bold disabled:opacity-40"
+                >
+                  {label}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void previewSoundPack(id)}
+                  title="נגן דוגמה"
+                  aria-label={`נגן דוגמה — ${label}`}
+                  className={`grid size-8 shrink-0 place-items-center rounded-full border text-xs ${
+                    soundPack === id ? "border-primary-foreground/50" : "border-input"
+                  }`}
+                >
+                  ▶
+                </button>
+              </div>
+              <span
+                className={`text-xs ${soundPack === id ? "text-primary-foreground/80" : "text-muted-foreground"}`}
+              >
+                {description}
+              </span>
+            </div>
           ))}
         </div>
       </section>

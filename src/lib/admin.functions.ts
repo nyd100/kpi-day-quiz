@@ -268,6 +268,21 @@ export const adminSetAnswerMarker = createServerFn({ method: "POST" })
     }
   });
 
+export const adminSetSoundPack = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ token, pack: z.enum(["cinematic", "classic", "arcade"]) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { assertAdmin, setSoundPackImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      await assertAdmin(data.token);
+      return await setSoundPackImpl(data.pack);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "שמירת חבילת הצלילים נכשלה.");
+    }
+  });
+
 export const adminUploadLogo = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
