@@ -1,4 +1,3 @@
-import { AnswerShape } from "./answer-shape";
 import { ANSWER_META, type AnswerId } from "@/lib/quiz";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +29,7 @@ export function AnswerTile({
   return (
     <Comp
       {...(isButton ? { type: "button" as const, onClick: onSelect, disabled } : {})}
-      aria-label={`תשובה ${id} · ${meta.shapeLabel} · ${text}`}
+      aria-label={`תשובה ${meta.letter} · ${text}`}
       aria-pressed={isButton ? !!selected : undefined}
       style={{ backgroundColor: meta.color }}
       className={cn(
@@ -43,8 +42,14 @@ export function AnswerTile({
         dimmed && "opacity-40 saturate-50",
       )}
     >
-      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-foreground/15">
-        <AnswerShape id={id} className="size-6 text-primary-foreground" />
+      <span
+        aria-hidden="true"
+        className={cn(
+          "grid shrink-0 place-items-center rounded-xl bg-foreground/15 font-black text-primary-foreground",
+          size === "player" ? "size-11 text-xl" : "size-14 text-3xl",
+        )}
+      >
+        {meta.letter}
       </span>
       <span
         className={cn(

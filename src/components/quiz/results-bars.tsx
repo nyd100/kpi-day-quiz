@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { AnswerShape } from "./answer-shape";
 import { ANSWER_IDS, ANSWER_META, type AnswerId, type QuestionStatistics } from "@/lib/quiz";
 import { cn } from "@/lib/utils";
 
@@ -55,10 +54,11 @@ export function ResultsBars({
               
               <div className="flex items-start gap-4">
                 <span
-                  className="grid size-12 shrink-0 place-items-center rounded-xl transition-all duration-500"
+                  aria-hidden="true"
+                  className="grid size-12 shrink-0 place-items-center rounded-xl text-2xl font-black text-primary-foreground transition-all duration-500"
                   style={{ backgroundColor: emphasize ? "var(--success)" : meta.color }}
                 >
-                  <AnswerShape id={id} className="size-6 text-primary-foreground" />
+                  {meta.letter}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-3">

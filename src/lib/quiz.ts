@@ -69,15 +69,16 @@ export type AnswerRow = {
   response_ms: number;
 };
 
-/** Identity system: position + colour + shape + text (never colour alone). */
-export const ANSWER_META: Record<
-  AnswerId,
-  { color: string; shape: "square" | "circle" | "triangle" | "diamond"; shapeLabel: string }
-> = {
-  A: { color: "var(--answer-a)", shape: "square", shapeLabel: "ריבוע" },
-  B: { color: "var(--answer-b)", shape: "circle", shapeLabel: "עיגול" },
-  C: { color: "var(--answer-c)", shape: "triangle", shapeLabel: "משולש" },
-  D: { color: "var(--answer-d)", shape: "diamond", shapeLabel: "מעוין" },
+/**
+ * Identity system: position + colour + Hebrew letter + text (never colour alone).
+ * A lettered badge (א/ב/ג/ד) reads as a professional multiple-choice marker and
+ * deliberately avoids the coloured-shape convention of consumer quiz apps.
+ */
+export const ANSWER_META: Record<AnswerId, { color: string; letter: string }> = {
+  A: { color: "var(--answer-a)", letter: "א" },
+  B: { color: "var(--answer-b)", letter: "ב" },
+  C: { color: "var(--answer-c)", letter: "ג" },
+  D: { color: "var(--answer-d)", letter: "ד" },
 };
 
 export const CATEGORY_LABEL: Record<QuestionCategory, string> = {
