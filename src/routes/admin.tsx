@@ -105,6 +105,12 @@ function AdminPage() {
   const [presentAspect, setPresentAspect] = useState<"16:9" | "4:3">("16:9");
   const [answerMarker, setAnswerMarker] = useState<AnswerMarkerMode>("letter");
   const [soundPack, setSoundPackState] = useState<SoundPackId>("cinematic");
+  // Display/sound settings are edited locally and persisted with an explicit
+  // "save" click, so a re-firing auth event can never clobber an in-progress
+  // choice (onAuthStateChanged re-runs load() on every token refresh).
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const displaySettingsHydrated = useRef(false);
 
   // ------------------------------------------------ live control of the game
   const now = useServerClock();
@@ -276,47 +282,55 @@ function AdminPage() {
     setQuestions(list);
     setLogoUrl(settings.logoUrl);
     setDefaultDuration(settings.defaultDurationSeconds);
-    setPresentAspect(settings.presentAspect === "4:3" ? "4:3" : "16:9");
-    // settings.answerMarker is already validated to the union by the server.
-    setAnswerMarker(settings.answerMarker);
-    setSoundPackState(settings.soundPack);
+    // Hydrate the display/sound selectors only once per mount. Later load() calls
+    // (token refresh, post-action refreshes) must NOT overwrite an operator's
+    // unsaved selection; a fresh page load resets the ref and re-hydrates.
+    if (!displaySettingsHydrated.current) {
+      setPresentAspect(settings.presentAspect === "4:3" ? "4:3" : "16:9");
+      // settings.answerMarker/soundPack are already validated to their unions.
+      setAnswerMarker(settings.answerMarker);
+      setSoundPackState(settings.soundPack);
+      setSoundPack(settings.soundPack); // keep the preview engine in sync
+      setSettingsDirty(false);
+      displaySettingsHydrated.current = true;
+    }
   };
 
-  const changePresentAspect = async (aspect: "16:9" | "4:3") => {
-    const previous = presentAspect;
+  // The three display/sound selectors edit local state only and mark the group
+  // dirty; nothing is written until the operator clicks "save changes".
+  const changePresentAspect = (aspect: "16:9" | "4:3") => {
     setPresentAspect(aspect);
-    try {
-      // Use a fresh ID token (like run/tick): the token captured at login can be
-      // stale/expired by the time the operator flips this, which would fail the write.
-      const t = await freshToken();
-      await adminSetPresentAspect({ data: { token: t, aspect } });
-    } catch (error) {
-      setPresentAspect(previous);
-      toast.error(error instanceof Error ? error.message : "שמירת יחס המסך נכשלה.");
-    }
+    setSettingsDirty(true);
   };
 
-  const changeAnswerMarker = async (marker: AnswerMarkerMode) => {
-    const previous = answerMarker;
+  const changeAnswerMarker = (marker: AnswerMarkerMode) => {
     setAnswerMarker(marker);
-    try {
-      const t = await freshToken();
-      await adminSetAnswerMarker({ data: { token: t, marker } });
-    } catch (error) {
-      setAnswerMarker(previous);
-      toast.error(error instanceof Error ? error.message : "שמירת סימון התשובות נכשלה.");
-    }
+    setSettingsDirty(true);
   };
 
-  const changeSoundPack = async (pack: SoundPackId) => {
-    const previous = soundPack;
+  const changeSoundPack = (pack: SoundPackId) => {
     setSoundPackState(pack);
+    setSoundPack(pack); // keep the preview engine in sync with the pending choice
+    setSettingsDirty(true);
+  };
+
+  // Persist all display/sound settings together, with explicit success/failure
+  // feedback so the operator knows the choice actually reached the server.
+  const saveDisplaySettings = async () => {
+    setSettingsSaving(true);
     try {
       const t = await freshToken();
-      await adminSetSoundPack({ data: { token: t, pack } });
+      await Promise.all([
+        adminSetPresentAspect({ data: { token: t, aspect: presentAspect } }),
+        adminSetAnswerMarker({ data: { token: t, marker: answerMarker } }),
+        adminSetSoundPack({ data: { token: t, pack: soundPack } }),
+      ]);
+      setSettingsDirty(false);
+      toast.success("ההגדרות נשמרו ✓");
     } catch (error) {
-      setSoundPackState(previous);
-      toast.error(error instanceof Error ? error.message : "שמירת חבילת הצלילים נכשלה.");
+      toast.error(error instanceof Error ? error.message : "שמירת ההגדרות נכשלה.");
+    } finally {
+      setSettingsSaving(false);
     }
   };
 
@@ -927,6 +941,29 @@ function AdminPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Shared save bar for the display + sound settings above (aspect / marker /
+          sound pack). They only take effect on the big screen after saving. */}
+      <section className="surface-card mb-6 flex flex-wrap items-center justify-between gap-3 p-5">
+        <div className="flex items-center gap-2 text-sm">
+          {settingsDirty ? (
+            <span className="flex items-center gap-2 font-bold text-accent">
+              <span className="inline-block size-2 rounded-full bg-accent" />
+              יש שינויים שלא נשמרו (יחס מסך · סימון תשובות · חבילת צלילים)
+            </span>
+          ) : (
+            <span className="text-muted-foreground">כל הגדרות התצוגה והסאונד שמורות ✓</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void saveDisplaySettings()}
+          disabled={!settingsDirty || settingsSaving}
+          className="h-11 rounded-xl bg-gradient-accent px-6 text-sm font-bold text-primary-foreground disabled:opacity-40"
+        >
+          {settingsSaving ? "שומר…" : "שמור שינויים"}
+        </button>
       </section>
 
       <section className="surface-card mb-6 space-y-3 p-5">
