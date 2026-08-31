@@ -270,7 +270,7 @@ export const adminSetAnswerMarker = createServerFn({ method: "POST" })
 
 export const adminSetSoundPack = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
-    z.object({ token, pack: z.enum(["cinematic", "classic", "arcade"]) }).parse(data),
+    z.object({ token, pack: z.enum(["cinematic", "gameshow", "classic", "arcade"]) }).parse(data),
   )
   .handler(async ({ data }) => {
     const { assertAdmin, setSoundPackImpl } = await import("./admin.server");

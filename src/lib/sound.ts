@@ -336,6 +336,70 @@ const PACKS: Record<SoundPackId, CueMap> = {
     },
   },
 
+  // ----------------------------------------------------------------- GAMESHOW
+  // TV quiz-show character: a real ticking clock in the final seconds, a proper
+  // "wrong-answer" buzzer at time-up, a bubbly plop for the fact, brassy ta-da
+  // reveals and fanfares.
+  gameshow: {
+    gameStart: () => {
+      [G4, C5, E5, G5].forEach((f, i) =>
+        fat(i * 0.06, f, 0.2, { type: "sawtooth", peak: 0.5, wet: 0.2, filterHz: 3500 }),
+      );
+      fat(0.28, C6, 0.34, { type: "sawtooth", peak: 0.55, wet: 0.3, filterHz: 4000 });
+      boom(0, 120, 80, 0.3, 0.5, 0.1);
+    },
+    questionStart: () => {
+      [C5, E5, G5].forEach((f, i) =>
+        tone(i * 0.07, f, 0.18, { type: "triangle", peak: 0.65, wet: 0.2, filterHz: 5000 }),
+      );
+      boom(0, 110, 80, 0.16, 0.4, 0);
+    },
+    // Ticking clock: an alternating tick/tock woodblock (a mechanical click plus a
+    // short pitched body), one per second, slightly louder on the final tick.
+    tick: (o) => {
+      const { r } = urgency(o.remaining);
+      const tock = r % 2 === 0; // …tick, tock, tick, tock…
+      const body = tock ? 900 : 1350;
+      const accent = r === 1 ? 0.12 : 0;
+      noise(0, 0.02, { peak: 0.32 + accent, type: "highpass", from: tock ? 3000 : 5000, wet: 0 });
+      tone(0.004, body, 0.045, { type: "square", peak: 0.4 + accent, filterHz: 4000 });
+      tone(0.004, body * 1.5, 0.03, { type: "sine", peak: 0.2 });
+    },
+    // Buzzer: the classic detuned "BZZT" — two saws beating against each other,
+    // low-passed so it's firm and TV-authentic without being ear-splitting.
+    timeUp: () => {
+      fat(0, 165, 0.5, { type: "sawtooth", peak: 0.6, wet: 0.1, filterHz: 1400 });
+      tone(0, 158, 0.5, { type: "sawtooth", peak: 0.5, detune: -8, filterHz: 1400 });
+      boom(0, 120, 85, 0.5, 0.55, 0.1);
+    },
+    // Ta-da! — a brassy two-hit fanfare landing on a bright major chord.
+    reveal: () => {
+      fat(0, G4, 0.16, { type: "sawtooth", peak: 0.5, wet: 0.2, filterHz: 3000 });
+      chord(0.15, [C5, E5, G5, C6], 0.6, { type: "sawtooth", peak: 0.42, wet: 0.3, roll: 0.02, filterHz: 3500 });
+      boom(0.15, 150, 70, 0.4, 0.6, 0.15);
+      tone(0.17, C6, 0.5, { type: "triangle", peak: 0.4, wet: 0.4 });
+    },
+    // Plop! — a quick bubbly downward blip as the fact pops onto the screen.
+    fact: () => {
+      slide(0, 720, 165, 0.13, { type: "sine", peak: 0.6, wet: 0.15, attack: 0.005 });
+      tone(0.005, 175, 0.16, { type: "sine", peak: 0.32, wet: 0.1 });
+    },
+    leaderboard: () => {
+      chord(0, [C5, E5, G5], 0.4, { type: "sawtooth", peak: 0.45, wet: 0.25, roll: 0.04, filterHz: 3500 });
+      chord(0.34, [E5, G5, C6], 0.6, { type: "sawtooth", peak: 0.5, wet: 0.3, roll: 0.04, filterHz: 4000 });
+      boom(0.34, 140, 90, 0.4, 0.5, 0.12);
+    },
+    // Winner fanfare with a crowd-applause wash underneath.
+    finale: () => {
+      noise(0, 1.3, { peak: 0.22, type: "highpass", from: 2000, wet: 0.3 });
+      [C5, E5, G5, C6, C6, G5, C6].forEach((f, i) =>
+        tone(0.1 + i * 0.14, f, 0.2, { type: "sawtooth", peak: 0.45, wet: 0.3, filterHz: 4000 }),
+      );
+      chord(1.15, [C4, E4, G4, C5], 1.0, { type: "sawtooth", peak: 0.5, wet: 0.35, roll: 0.04, filterHz: 4000 });
+      boom(1.15, 180, 60, 0.9, 0.7, 0.2);
+    },
+  },
+
   // ------------------------------------------------------------------ CLASSIC
   // Clean and balanced — bright synth beeps with a light space.
   classic: {
