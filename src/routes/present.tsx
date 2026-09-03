@@ -65,6 +65,8 @@ function PresentPage() {
     () => questions.find((q) => q.id === questionIndex) ?? null,
     [questions, questionIndex],
   );
+  // Length of the current fun fact, used to scale its big-screen font size.
+  const factLen = question?.funFact?.length ?? 0;
 
   const answers = useQuestionAnswers(
     active?.sessionId ?? null,
@@ -347,11 +349,7 @@ function PresentPage() {
                 screen, while short facts stay large and punchy. */}
             <p
               className={`font-black leading-tight text-foreground ${
-                (question?.funFact?.length ?? 0) > 220
-                  ? "text-3xl"
-                  : (question?.funFact?.length ?? 0) > 120
-                    ? "text-4xl"
-                    : "text-5xl"
+                factLen > 220 ? "text-3xl" : factLen > 120 ? "text-4xl" : "text-5xl"
               }`}
             >
               {question?.funFact}

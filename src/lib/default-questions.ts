@@ -1,6 +1,9 @@
 // The approved default dataset for סיכום חציון א' 2026 (source: "שאלות לחלק
-// הנתונים- 1.9.26.docx"). Transcribed verbatim from the document — values,
-// answers and correct keys must not be altered. 12 questions, no placeholder.
+// הנתונים- 1.9.26.docx"). Values, answers and correct keys are transcribed
+// exactly from the document — do not alter them. 12 questions, no placeholder.
+// Two source spelling typos were corrected with the operator's approval:
+// Q6 "הליוויי"→"הליווי" and Q3 fun fact "עוברו"→"עברו". Q8 has no marked
+// answer in the source; its correct key (B) was confirmed by the operator.
 import type { AnswerId, QuestionCategory } from "@/lib/quiz";
 
 export type DefaultQuestion = {
@@ -50,7 +53,7 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
       "בתחילת 2026 היו כ-3,700 עולים יוצאי אתיופיה במרכזי הקליטה ברחבי הארץ. כמה מהם עזבו את מרכזי הקליטה ועברו למגורי קבע בקהילה בחצי השנה הראשונה של שנת 2026?",
     answers: ["462 עולים", "987 עולים", "954 עולים", "1,311 עולים"],
     correctAnswerId: "B",
-    funFact: "90% מהעולים עוברו לערים: באר שבע, אשקלון, קרית גת וקריות חיפה",
+    funFact: "90% מהעולים עברו לערים: באר שבע, אשקלון, קרית גת וקריות חיפה",
     funFactEnabled: true,
   },
   {
@@ -85,7 +88,7 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     category: "OUTPUT",
     durationSeconds: 20,
     pairId: null,
-    title: "כמה עולים הגיעו לישראל בשנת 2026 ממדינות שבהן מופעל מערך הליוויי לעידוד עלייה?",
+    title: "כמה עולים הגיעו לישראל בשנת 2026 ממדינות שבהן מופעל מערך הליווי לעידוד עלייה?",
     answers: ["1,200 עולים", "1,650 עולים", "2,005 עולים", "3,100 עולים"],
     correctAnswerId: "C",
     funFact:
