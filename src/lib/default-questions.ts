@@ -154,7 +154,7 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
       "26%",
     ],
     correctAnswerId: "D",
-    funFact: "הקיצוץ המצטבר בתקציב הפעילות של המשרד מאז סוף שנת 2025 עומד על כ-142 מליון ש״ח",
+    funFact: "הקיצוץ המצטבר בתקציב הפעילות של המשרד מאז סוף שנת 2025 עומד על כ-142 מיליון ש״ח",
     funFactEnabled: true,
   },
   {
