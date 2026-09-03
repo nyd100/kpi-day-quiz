@@ -1,7 +1,6 @@
-// The approved default dataset for סיכום חציון א' 2026 (updated 26.8.26).
-// Values, answers and correct keys must not be altered.
-// Question 12 is intentionally an empty placeholder — a slot to be filled in the
-// admin console before the event (isPlaceholder + disabled).
+// The approved default dataset for סיכום חציון א' 2026 (source: "שאלות לחלק
+// הנתונים- 1.9.26.docx"). Transcribed verbatim from the document — values,
+// answers and correct keys must not be altered. 12 questions, no placeholder.
 import type { AnswerId, QuestionCategory } from "@/lib/quiz";
 
 export type DefaultQuestion = {
@@ -26,9 +25,12 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     category: "OUTPUT",
     durationSeconds: 20,
     pairId: null,
-    title: 'מספר החיילים העולים שהתגייסו לצה"ל במהלך החציון הראשון של שנת 2026?',
-    answers: ["702", "1,206", "3,478", "214"],
+    title: 'מה מספר החיילים העולים שהתגייסו לצה"ל במהלך החציון הראשון של שנת 2026?',
+    answers: ["702", "1,325", "3,478", "214"],
     correctAnswerId: "B",
+    funFact:
+      "בתקופה המקבילה אשתקד התגייסו 1,471 חיילים עולים, כאשר 47% מהם במעמד חיילים בודדים, לעומת השנה שבה 44% בלבד הם במעמד זה.",
+    funFactEnabled: true,
   },
   {
     order: 2,
@@ -41,13 +43,14 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
   },
   {
     order: 3,
-    category: "OUTCOME",
+    category: "OUTPUT",
     durationSeconds: 30,
     pairId: null,
-    title: "כמה עולים עזבו את מרכזי הקליטה ועברו למגורי קבע בקהילה בחצי השנה הראשונה של שנת 2026?",
-    answers: ["450 עולים", "700 עולים", "950 עולים", "1,300 עולים"],
+    title:
+      "בתחילת 2026 היו כ-3,700 עולים יוצאי אתיופיה במרכזי הקליטה ברחבי הארץ. כמה מהם עזבו את מרכזי הקליטה ועברו למגורי קבע בקהילה בחצי השנה הראשונה של שנת 2026?",
+    answers: ["462 עולים", "987 עולים", "954 עולים", "1,311 עולים"],
     correctAnswerId: "B",
-    funFact: "לאן הם עברו / מתוך כמה שמתגוררים במרכזי קליטה?",
+    funFact: "90% מהעולים עוברו לערים: באר שבע, אשקלון, קרית גת וקריות חיפה",
     funFactEnabled: true,
   },
   {
@@ -56,9 +59,10 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     durationSeconds: 20,
     pairId: null,
     title: "לאיזו מהערים הבאות הגיעו בשנת 2026 המספר הגדול ביותר של עולים ממדינות המערב?",
-    answers: ["נתניה", "ירושלים", "תל-אביב", "חדרה"],
-    correctAnswerId: "C",
-    funFact: "השנה הגיעו לתל אביב כבר כ-1,846 עולים!",
+    answers: ["נתניה", "ירושלים", "תל-אביב", "בית שמש וסביבתה"],
+    correctAnswerId: "B",
+    funFact:
+      "למרות שירושלים הינה העיר המובילה בקליטת עולים מבריטניה החל משנת 2020, ניתן לראות השנה היפוך מגמה כך שדווקא תל אביב קלטה 20% מעולי המדינה (לעומת 14% שקלטה ירושלים).",
     funFactEnabled: true,
   },
   {
@@ -66,7 +70,8 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     category: "OUTCOME",
     durationSeconds: 30,
     pairId: null,
-    title: "במסגרת ירידים שהתקיימו ברחבי העולם בשנת 2026 הופצו מוצרי פרסום ב-50 מהם. מה מבין הבאים הוא מדד תוצאה המודד את האפקטיביות של המהלך?",
+    title:
+      "במסגרת ירידים שהתקיימו ברחבי העולם בשנת 2026 הופצו מוצרי פרסום ב-50 מהם. מה מבין הבאים הוא מדד תוצאה המודד את האפקטיביות של המהלך?",
     answers: [
       "הדפסת 10,000 עלוני פרסום נוספים ב-4 שפות",
       "הגדלת מספר הירידים בהם המשרד ייקח חלק בשנה הבאה ל-60",
@@ -80,12 +85,24 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     category: "OUTPUT",
     durationSeconds: 20,
     pairId: null,
-    title: "כמה עולים הגיעו לישראל בשנת 2026 ממדינות שבהן מופעל מערך הליווי לעידוד עלייה?",
+    title: "כמה עולים הגיעו לישראל בשנת 2026 ממדינות שבהן מופעל מערך הליוויי לעידוד עלייה?",
     answers: ["1,200 עולים", "1,650 עולים", "2,005 עולים", "3,100 עולים"],
     correctAnswerId: "C",
+    funFact:
+      "אמנם, שלוש הערים המובילות בקליטת עלייה ממדינות אלו הינן נתניה, ירושלים ותל אביב ב-5 השנים האחרונות, אבל ניתן לראות שרעננה מציגה השנה עלייה משמעותית בשיעור העולים הנקלטים בה, מ-7% ב-2025 ל-11%. בבחינת מועצות איזוריות, ניתן לראות שמטה אשר מציגה גידול של פי 3 במספר העולים המגיעים אליה (למרות המצב הביטחוני)!",
+    funFactEnabled: true,
   },
   {
     order: 7,
+    category: "OUTPUT",
+    durationSeconds: 20,
+    pairId: null,
+    title: "כמה מועמדי עלייה פנו למנהל הסטודנטים לקבלת שירות טרום-עלייה ב-2026?",
+    answers: ["3,400 פונים", "4,800 פונים", "5,278 פונים", "6,500 פונים"],
+    correctAnswerId: "C",
+  },
+  {
+    order: 8,
     category: "OUTPUT",
     durationSeconds: 20,
     pairId: null,
@@ -93,22 +110,14 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     answers: [
       "תל אביב, אשקלון ונתניה",
       "ירושלים, אשקלון ובית שמש",
-      "בית שמש, באר שבע ומודיעין",
-      "מודיעין, תל אביב ובאר שבע",
+      "בית שמש, באר שבע, ומודיעין",
+      "מודיעין, תל אביב, באר שבע",
     ],
+    // NOTE: the source document does not mark a correct answer for this question.
+    // Set to "ירושלים, אשקלון ובית שמש" (B) per the operator's prior confirmation
+    // and the fun fact (ירושלים leads with 27 classes). Verify before the event.
     correctAnswerId: "B",
-    funFact: 'בשלוש הרשויות נפתחו סך הכל 61 כיתות של תכנית פל"א, כאשר המובילה היא ירושלים עם 27 כיתות!',
-    funFactEnabled: true,
-  },
-  {
-    order: 8,
-    category: "OUTPUT",
-    durationSeconds: 20,
-    pairId: null,
-    title: 'כמה מסגרות ליווי קהילתיות הוקמו לטובת צעירים יוצאי ברה"מ לשעבר במסגרת רשת א.ד.מ.ה?',
-    answers: ["10", "13", "15", "12"],
-    correctAnswerId: "C",
-    funFact: "מדובר על הקמה של 25% יותר קהילות מהיעד השנתי שהוגדר!",
+    funFact: 'בשלוש הרשויות נפתחו סך הכל 61 כיתות של תכנית פל"א כאשר המובילה היא ירושלים עם 27 כיתות!',
     funFactEnabled: true,
   },
   {
@@ -139,46 +148,19 @@ export const DEFAULT_QUESTIONS: DefaultQuestion[] = [
     category: "OUTPUT",
     durationSeconds: 20,
     pairId: null,
-    title: 'מה מספר העולים והתושבים החוזרים שקיבלו ליווי עסקי במסגרת מרכזי ייעוץ עסקי מעלו"ת במהלך החציון הראשון של 2026?',
-    answers: ["2,987", "3,525", "1,987", "2,643"],
-    correctAnswerId: "A",
-    funFact: "בחציון הראשון הושגו כבר 84% מערך היעד השנתי שהוגדר!",
-    funFactEnabled: true,
+    title: "בכמה אחוזים קוצץ תקציב הפעילות של המשרד מאז סוף שנת 2025?",
+    answers: ["8%", "14%", "20%", "26%"],
+    correctAnswerId: "D",
   },
   {
-    // Empty placeholder — a slot to insert the budget question in the admin
-    // console. Disabled so it does not appear in the game until filled + enabled.
     order: 12,
     category: "OUTPUT",
     durationSeconds: 20,
     pairId: null,
-    title: "",
-    answers: ["", "", "", ""],
-    correctAnswerId: "A",
-    isPlaceholder: true,
-    isEnabled: false,
-  },
-  {
-    order: 13,
-    category: "OUTPUT",
-    durationSeconds: 20,
-    pairId: null,
-    title: "כמה מועמדי עלייה פנו למנהל הסטודנטים לקבלת שירות טרום-עלייה ב-2026?",
-    answers: ["3,400 פונים", "4,800 פונים", "5,278 פונים", "6,500 פונים"],
+    title: 'כמה מסגרות ליווי קהילתיות הוקמו לטובת צעירים יוצאי ברה"מ לשעבר במסגרת רשת א.ד.מ.ה?',
+    answers: ["10", "13", "15", "12"],
     correctAnswerId: "C",
-  },
-  {
-    order: 14,
-    category: "OUTCOME",
-    durationSeconds: 30,
-    pairId: null,
-    title: "רשמנו 5,278 פניות של צעירים בשירות טרום-עלייה - שזה כבר מעבר ליעד השנתי שהוגדר! אבל, איך נוכל להפוך את הנתון הזה למדד תוצאה?",
-    answers: [
-      "הגדלת יעד הפניות בחציון ב' ל-7,000 צעירים (במקום 5,000 כפי שמוגדר כיום)",
-      "הגדלת מספר הפניות היזומות של מנהל הסטודנטים למועמדי עלייה ל-7,000",
-      "אחוז הפונים שפתחו תיק עלייה בפועל והשלימו את הליך העלייה לטובת לימודים אקדמאיים עד לשנת הלימודים הבאה",
-      "גיוס 5 מלווי עולים נוספים שיובילו את הטיפול והסיוע לאותם מועמדי עלייה",
-    ],
-    correctAnswerId: "C",
+    funFact: "מדובר על הקמה של 25% יותר קהילות מהיעד השנתי שהוגדר!",
+    funFactEnabled: true,
   },
 ];

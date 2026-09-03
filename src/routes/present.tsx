@@ -343,7 +343,17 @@ function PresentPage() {
             <span className="rounded-full bg-gradient-accent px-8 py-2 text-2xl font-black text-primary-foreground shadow-lg">
               עובדה מעניינת
             </span>
-            <p className="text-5xl font-black leading-tight text-foreground">
+            {/* Scale the text down for long facts so nothing overflows the big
+                screen, while short facts stay large and punchy. */}
+            <p
+              className={`font-black leading-tight text-foreground ${
+                (question?.funFact?.length ?? 0) > 220
+                  ? "text-3xl"
+                  : (question?.funFact?.length ?? 0) > 120
+                    ? "text-4xl"
+                    : "text-5xl"
+              }`}
+            >
               {question?.funFact}
             </p>
           </div>

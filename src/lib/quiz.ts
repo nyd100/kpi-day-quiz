@@ -15,7 +15,7 @@ export type ScoringMode = "QUIZ" | "POLL";
 export type AnswerId = "A" | "B" | "C" | "D";
 
 export const ANSWER_IDS: AnswerId[] = ["A", "B", "C", "D"];
-export const TOTAL_QUESTIONS = 14;
+export const TOTAL_QUESTIONS = 12;
 
 export type QuizQuestion = {
   id: number;
