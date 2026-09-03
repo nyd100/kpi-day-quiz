@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 import { AnswerTile } from "@/components/quiz/answer-tile";
@@ -8,12 +8,13 @@ import { Countdown } from "@/components/quiz/countdown";
 import { LeaderboardList, Podium } from "@/components/quiz/leaderboard";
 import { ParticipationStrip } from "@/components/quiz/participation-strip";
 import { ResultsBars } from "@/components/quiz/results-bars";
-import { disableSound, enableSound, isSoundEnabled, playCue, setSoundPack } from "@/lib/sound";
+import { enableSound, playCue, setMuted, setSoundPack } from "@/lib/sound";
 import { autoAdvance } from "@/lib/game.functions";
 import {
   useActiveGame,
   useAnswerMarker,
   useSoundPack,
+  useSoundEnabled,
   useAppSetting,
   useCountdown,
   useHydrated,
@@ -43,7 +44,15 @@ export const Route = createFileRoute("/present")({
 function PresentPage() {
   const hydrated = useHydrated();
   const active = useActiveGame();
-  const [sound, setSound] = useState(false);
+  // Audio is ON by default; the operator mutes/unmutes from the admin console
+  // (sound_enabled setting). The browser still requires one user gesture on THIS
+  // page before any audio can start, so we unlock the context on first interaction.
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const soundEnabled = useSoundEnabled();
+  const unlockAudio = useCallback(async () => {
+    const ok = await enableSound();
+    if (ok) setAudioUnlocked(true);
+  }, []);
 
   const now = useServerClock();
   const { session, connection } = useLiveSession(active?.sessionId ?? null);
@@ -153,16 +162,24 @@ function PresentPage() {
     if (seconds > 5) lastTick.current = 0;
   }, [seconds, session?.phase]);
 
-  const toggleSound = async () => {
-    if (sound) {
-      disableSound();
-      setSound(false);
-      return;
-    }
-    const ok = await enableSound();
-    setSound(ok && isSoundEnabled());
-    if (ok) playCue("questionStart");
-  };
+  // Mirror the operator's mute switch into the sound engine.
+  useEffect(() => {
+    setMuted(!soundEnabled);
+  }, [soundEnabled]);
+
+  // Unlock the audio context on the first interaction with the projected screen
+  // (browser autoplay policy). Any click/key anywhere counts; after that, sound
+  // plays automatically on every cue unless muted from the admin console.
+  useEffect(() => {
+    if (audioUnlocked) return;
+    const handler = () => void unlockAudio();
+    window.addEventListener("pointerdown", handler, { once: true });
+    window.addEventListener("keydown", handler, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", handler);
+      window.removeEventListener("keydown", handler);
+    };
+  }, [audioUnlocked, unlockAudio]);
 
   // Fixed-height design canvas (1080 = real projector height) scaled to fit the
   // screen. Height is constant across ratios so the tallest phase (SHOW_RESULTS)
@@ -394,14 +411,17 @@ function PresentPage() {
 
       </main>
       </div>
-      {/* Projected screen: no management controls. Sound stays as a discreet toggle. */}
-      <button
-        onClick={() => void toggleSound()}
-        aria-label={sound ? "כיבוי צלילים" : "הפעלת צלילים"}
-        className="fixed bottom-4 start-4 h-10 w-10 rounded-full border border-input bg-background/70 text-sm opacity-40 transition-opacity hover:opacity-100"
-      >
-        {sound ? "🔊" : "🔇"}
-      </button>
+      {/* Projected screen: no sound controls (mute/unmute lives in the admin
+          console). A one-time prompt appears only while sound is wanted but the
+          browser hasn't been unlocked yet — clicking it (or anything) unlocks. */}
+      {active && soundEnabled && !audioUnlocked && (
+        <button
+          onClick={() => void unlockAudio()}
+          className="fixed bottom-4 start-4 z-20 h-10 rounded-full border border-input bg-background/90 px-4 text-sm font-bold shadow-lg transition-opacity hover:opacity-100"
+        >
+          🔊 הפעלת קול
+        </button>
+      )}
       {/* Discreet, centered credit — low opacity + pointer-events-none so it never
           competes with or blocks the game graphics. */}
       <p className="pointer-events-none fixed inset-x-0 bottom-2 z-10 text-center text-xs text-muted-foreground">

@@ -393,6 +393,7 @@ export const ASPECT_KEY = "present_aspect";
 export const FALLBACK_ASPECT = "16:9";
 export const MARKER_KEY = "answer_marker";
 export const SOUND_PACK_KEY = "sound_pack";
+export const SOUND_ENABLED_KEY = "sound_enabled";
 
 export async function getSettingsImpl() {
   try {
@@ -407,6 +408,7 @@ export async function getSettingsImpl() {
       presentAspect: map[ASPECT_KEY] === "4:3" ? "4:3" : "16:9",
       answerMarker: isAnswerMarkerMode(map[MARKER_KEY]) ? map[MARKER_KEY] : "letter",
       soundPack: isSoundPackId(map[SOUND_PACK_KEY]) ? map[SOUND_PACK_KEY] : "cinematic",
+      soundEnabled: map[SOUND_ENABLED_KEY] !== false, // default ON
     };
   } catch (error) {
     return {
@@ -416,6 +418,7 @@ export async function getSettingsImpl() {
       presentAspect: "16:9" as const,
       answerMarker: "letter" as AnswerMarkerMode,
       soundPack: "cinematic" as SoundPackId,
+      soundEnabled: true,
     };
   }
 }
@@ -482,6 +485,14 @@ export async function setSoundPackImpl(pack: SoundPackId) {
     { merge: true }
   );
   return { soundPack: pack };
+}
+
+export async function setSoundEnabledImpl(enabled: boolean) {
+  await adminDb.collection("settings").doc("global").set(
+    { [SOUND_ENABLED_KEY]: enabled, updated_at: new Date().toISOString() },
+    { merge: true }
+  );
+  return { soundEnabled: enabled };
 }
 
 export async function uploadLogoImpl(input: {

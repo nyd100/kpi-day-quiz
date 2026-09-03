@@ -439,6 +439,12 @@ export function useSoundPack(): SoundPackId {
   return isSoundPackId(raw) ? raw : "cinematic";
 }
 
+/** Whether presenter sound is enabled (default ON; muted only when explicitly false). */
+export function useSoundEnabled(): boolean {
+  const raw = useAppSetting("sound_enabled") as unknown;
+  return raw !== false && raw !== "false" && raw !== 0 && raw !== "0";
+}
+
 // ------------------------------------------------------------ local identity
 
 export type PlayerIdentity = {

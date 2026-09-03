@@ -283,6 +283,19 @@ export const adminSetSoundPack = createServerFn({ method: "POST" })
     }
   });
 
+export const adminSetSoundEnabled = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ token, enabled: z.boolean() }).parse(data))
+  .handler(async ({ data }) => {
+    const { assertAdmin, setSoundEnabledImpl } = await import("./admin.server");
+    const { GameError } = await import("./game.server");
+    try {
+      await assertAdmin(data.token);
+      return await setSoundEnabledImpl(data.enabled);
+    } catch (error) {
+      throw new Error(error instanceof GameError ? error.message : "שמירת מצב הקול נכשלה.");
+    }
+  });
+
 export const adminUploadLogo = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z

@@ -23,6 +23,7 @@ import {
   adminSetPresentAspect,
   adminSetAnswerMarker,
   adminSetSoundPack,
+  adminSetSoundEnabled,
   adminSetQuestionEnabled,
   adminUploadLogo,
   adminUploadQuestionImage,
@@ -105,6 +106,9 @@ function AdminPage() {
   const [presentAspect, setPresentAspect] = useState<"16:9" | "4:3">("16:9");
   const [answerMarker, setAnswerMarker] = useState<AnswerMarkerMode>("letter");
   const [soundPack, setSoundPackState] = useState<SoundPackId>("cinematic");
+  // Live mute switch for the big screen — saved immediately (not part of the
+  // "save changes" group) so the operator can toggle it during the game.
+  const [soundEnabled, setSoundEnabled] = useState(true);
   // Display/sound settings are edited locally and persisted with an explicit
   // "save" click, so a re-firing auth event can never clobber an in-progress
   // choice (onAuthStateChanged re-runs load() on every token refresh).
@@ -291,6 +295,7 @@ function AdminPage() {
       setAnswerMarker(settings.answerMarker);
       setSoundPackState(settings.soundPack);
       setSoundPack(settings.soundPack); // keep the preview engine in sync
+      setSoundEnabled(settings.soundEnabled);
       setSettingsDirty(false);
       displaySettingsHydrated.current = true;
     }
@@ -312,6 +317,19 @@ function AdminPage() {
     setSoundPackState(pack);
     setSoundPack(pack); // keep the preview engine in sync with the pending choice
     setSettingsDirty(true);
+  };
+
+  // Live mute toggle — persisted immediately so it can be flipped mid-game.
+  const changeSoundEnabled = async (enabled: boolean) => {
+    const previous = soundEnabled;
+    setSoundEnabled(enabled);
+    try {
+      const t = await freshToken();
+      await adminSetSoundEnabled({ data: { token: t, enabled } });
+    } catch (error) {
+      setSoundEnabled(previous);
+      toast.error(error instanceof Error ? error.message : "שמירת מצב הקול נכשלה.");
+    }
   };
 
   // Persist all display/sound settings together, with explicit success/failure
@@ -892,6 +910,31 @@ function AdminPage() {
               </span>
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="surface-card mb-6 space-y-3 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">קול במסך התצוגה</h2>
+            <p className="text-sm text-muted-foreground">
+              מופעל כברירת מחדל. ניתן להשתיק/להפעיל מכאן בכל רגע (נשמר מיד).
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={soundEnabled}
+            onClick={() => void changeSoundEnabled(!soundEnabled)}
+            disabled={busy}
+            className={`flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-bold transition-colors disabled:opacity-40 ${
+              soundEnabled
+                ? "bg-gradient-accent text-primary-foreground"
+                : "border border-input text-muted-foreground"
+            }`}
+          >
+            {soundEnabled ? "🔊 קול פעיל" : "🔇 מושתק"}
+          </button>
         </div>
       </section>
 

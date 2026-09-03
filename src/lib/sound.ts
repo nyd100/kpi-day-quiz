@@ -25,11 +25,17 @@ type CueOpts = { remaining?: number; pack?: SoundPackId };
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let reverbBus: GainNode | null = null; // wet send → convolver → return → comp
-let enabled = false;
+let enabled = false; // audio context unlocked (needs a user gesture on the page)
+let muted = false; // operator mute switch (driven by the admin sound_enabled setting)
 let currentPack: SoundPackId = "cinematic";
 
 export function isSoundEnabled() {
   return enabled;
+}
+
+/** Operator mute switch — cues are silent while muted even if the ctx is unlocked. */
+export function setMuted(m: boolean) {
+  muted = m;
 }
 
 export function setSoundPack(pack: string) {
@@ -517,7 +523,7 @@ const PACKS: Record<SoundPackId, CueMap> = {
 };
 
 export function playCue(cue: Cue, opts: CueOpts = {}) {
-  if (!enabled || !ctx) return;
+  if (!enabled || muted || !ctx) return;
   const pack = opts.pack && isSoundPackId(opts.pack) ? opts.pack : currentPack;
   PACKS[pack][cue](opts);
 }
