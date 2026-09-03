@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 import { AnswerTile } from "@/components/quiz/answer-tile";
@@ -65,8 +65,31 @@ function PresentPage() {
     () => questions.find((q) => q.id === questionIndex) ?? null,
     [questions, questionIndex],
   );
-  // Length of the current fun fact, used to scale its big-screen font size.
-  const factLen = question?.funFact?.length ?? 0;
+  // Auto-fit the fun-fact text: shrink the font until the framed card fits the
+  // available section height, so any length shows in full with no clipping.
+  const factSectionRef = useRef<HTMLElement | null>(null);
+  const factCardRef = useRef<HTMLDivElement | null>(null);
+  const [factFontPx, setFactFontPx] = useState(48);
+  useLayoutEffect(() => {
+    if (session?.phase !== "SHOW_FACT") return;
+    const section = factSectionRef.current;
+    const card = factCardRef.current;
+    const p = card?.querySelector<HTMLElement>("[data-fact-text]");
+    if (!section || !card || !p) return;
+    const MAX = 52;
+    const MIN = 16;
+    const avail = section.clientHeight - 16; // small breathing margin
+    let size = MAX;
+    p.style.fontSize = `${size}px`;
+    // Linearly shrink until the card fits the section (bounded iterations).
+    let guard = 0;
+    while (card.scrollHeight > avail && size > MIN && guard < 40) {
+      size -= 2;
+      p.style.fontSize = `${size}px`;
+      guard++;
+    }
+    setFactFontPx(size);
+  }, [session?.phase, question?.funFact]);
 
   const answers = useQuestionAnswers(
     active?.sessionId ?? null,
@@ -335,22 +358,25 @@ function PresentPage() {
         // Focus comes purely from how the content ENTERS (one-shot zoom/slide/fade),
         // not from any looping/flickering element on screen.
         <section
+          ref={factSectionRef}
           key={question?.id ?? "fact"}
-          className="flex flex-1 flex-col items-center justify-center p-10"
+          className="flex flex-1 flex-col items-center justify-center overflow-hidden p-10"
         >
           {/* A distinctly framed card that grows small -> large as it enters, so it
-              pops and grabs the room's focus (one-shot, nothing looping). */}
-          <div className="flex max-w-5xl flex-col items-center gap-6 rounded-[2.5rem] border-4 border-primary bg-primary/5 px-16 py-12 text-center shadow-2xl shadow-primary/25 animate-in fade-in zoom-in-50 duration-700">
-            <span className="text-8xl">💡</span>
+              pops and grabs the room's focus (one-shot, nothing looping). The text
+              auto-shrinks (see the layout effect) so any length fits with no clip. */}
+          <div
+            ref={factCardRef}
+            className="flex max-h-full max-w-5xl flex-col items-center gap-5 rounded-[2.5rem] border-4 border-primary bg-primary/5 px-16 py-10 text-center shadow-2xl shadow-primary/25 animate-in fade-in zoom-in-50 duration-700"
+          >
+            <span className="text-7xl">💡</span>
             <span className="rounded-full bg-gradient-accent px-8 py-2 text-2xl font-black text-primary-foreground shadow-lg">
               עובדה מעניינת
             </span>
-            {/* Scale the text down for long facts so nothing overflows the big
-                screen, while short facts stay large and punchy. */}
             <p
-              className={`font-black leading-tight text-foreground ${
-                factLen > 220 ? "text-3xl" : factLen > 120 ? "text-4xl" : "text-5xl"
-              }`}
+              data-fact-text
+              style={{ fontSize: `${factFontPx}px` }}
+              className="font-black leading-tight text-foreground"
             >
               {question?.funFact}
             </p>
