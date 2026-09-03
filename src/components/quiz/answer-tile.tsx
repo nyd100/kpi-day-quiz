@@ -74,7 +74,8 @@ export function AnswerTile({
       className={cn(
         "relative flex w-full items-center gap-3 rounded-2xl px-4 text-start transition-all duration-200",
         "text-primary-foreground",
-        size === "player" ? "h-[88px] py-3" : "h-[116px] py-4",
+        // Same rectangle size as before (fixed so the text can auto-fit inside).
+        size === "player" ? "h-[86px] py-3" : "h-[104px] py-4",
         isButton && !disabled && "hover:brightness-110 active:scale-[0.98]",
         selected && "ring-4 ring-accent",
         correct && "ring-4 ring-success",
