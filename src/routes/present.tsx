@@ -41,6 +41,25 @@ export const Route = createFileRoute("/present")({
   component: PresentPage,
 });
 
+// Render an interesting-fact string: blank lines (\n\n) become separate
+// paragraphs (preserving the source's two-sentence spacing), and **bold** spans
+// are emphasized in the accent colour so key parts stand out.
+function renderFunFact(text: string) {
+  return text.split(/\n\n+/).map((para, i) => (
+    <p key={i} className={i > 0 ? "mt-6" : ""}>
+      {para.split(/(\*\*[^*]+\*\*)/g).map((seg, j) =>
+        seg.length > 4 && seg.startsWith("**") && seg.endsWith("**") ? (
+          <strong key={j} className="text-primary">
+            {seg.slice(2, -2)}
+          </strong>
+        ) : (
+          <span key={j}>{seg}</span>
+        ),
+      )}
+    </p>
+  ));
+}
+
 function PresentPage() {
   const hydrated = useHydrated();
   const active = useActiveGame();
@@ -390,13 +409,13 @@ function PresentPage() {
             <span className="rounded-full bg-gradient-accent px-8 py-2 text-2xl font-black text-primary-foreground shadow-lg">
               עובדה מעניינת
             </span>
-            <p
+            <div
               data-fact-text
               style={{ fontSize: `${factFontPx}px` }}
               className="font-black leading-tight text-foreground"
             >
-              {question?.funFact}
-            </p>
+              {renderFunFact(question?.funFact ?? "")}
+            </div>
           </div>
         </section>
       )}
