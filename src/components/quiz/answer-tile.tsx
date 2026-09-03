@@ -33,24 +33,27 @@ export function AnswerTile({
   const isButton = typeof onSelect === "function";
   const Comp = isButton ? "button" : "div";
 
-  // Answer text is large by default and auto-shrinks to fit its fixed-height box,
-  // so a long answer never overflows the tile or crowds the layout.
+  // Answer text is large by default and auto-shrinks only when a long answer
+  // wouldn't otherwise fit the tile — measured against the tile's ACTUAL height
+  // (which grows to fill the grid on the big screen), so tiles keep their normal
+  // size and the text is as large as fits.
   const MAX = size === "stage" ? 36 : 22;
   const MIN = size === "stage" ? 18 : 13;
-  const boxRef = useRef<HTMLDivElement>(null);
+  const PAD = size === "stage" ? 32 : 24; // vertical padding (py-4 / py-3), both sides
+  const tileRef = useRef<HTMLElement | null>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [fontPx, setFontPx] = useState(MAX);
   useIsoLayoutEffect(() => {
-    const box = boxRef.current;
+    const tile = tileRef.current;
     const el = textRef.current;
-    if (!box || !el) return;
-    // Shrink from MAX until the (wrapped) text height fits the box height.
+    if (!tile || !el) return;
     const fit = () => {
-      if (box.clientWidth === 0) return; // hidden/unlaid-out: skip, re-run on resize
+      const avail = tile.clientHeight - PAD;
+      if (tile.clientWidth === 0 || avail <= 0) return; // not laid out yet
       let s = MAX;
       el.style.fontSize = `${s}px`;
       let guard = 0;
-      while (el.scrollHeight > box.clientHeight + 1 && s > MIN && guard < 60) {
+      while (el.scrollHeight > avail && s > MIN && guard < 60) {
         s -= 1;
         el.style.fontSize = `${s}px`;
         guard++;
@@ -58,15 +61,16 @@ export function AnswerTile({
       setFontPx(s);
     };
     fit();
-    // Re-fit if the tile is resized (e.g. the operator switches 16:9 ↔ 4:3).
+    // Re-fit when the tile is resized (grid stretch, 16:9 ↔ 4:3, window resize).
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(fit);
-    ro.observe(box);
+    ro.observe(tile);
     return () => ro.disconnect();
-  }, [text, size, correct, markerMode, MAX, MIN]);
+  }, [text, size, correct, markerMode, MAX, MIN, PAD]);
 
   return (
     <Comp
+      ref={tileRef as never}
       {...(isButton ? { type: "button" as const, onClick: onSelect, disabled } : {})}
       aria-label={`תשובה ${markerLabel(id, markerMode)} · ${text}`}
       aria-pressed={isButton ? !!selected : undefined}
@@ -74,8 +78,8 @@ export function AnswerTile({
       className={cn(
         "relative flex w-full items-center gap-3 rounded-2xl px-4 text-start transition-all duration-200",
         "text-primary-foreground",
-        // Same rectangle size as before (fixed so the text can auto-fit inside).
-        size === "player" ? "h-[86px] py-3" : "h-[104px] py-4",
+        // Original sizing: a minimum height that stretches to fill the grid row.
+        size === "player" ? "min-h-[86px] py-3" : "min-h-[104px] py-4",
         isButton && !disabled && "hover:brightness-110 active:scale-[0.98]",
         selected && "ring-4 ring-accent",
         correct && "ring-4 ring-success",
@@ -91,7 +95,7 @@ export function AnswerTile({
       >
         <AnswerMarker id={id} mode={markerMode} size={size} />
       </span>
-      <div ref={boxRef} className="flex h-full min-w-0 flex-1 items-center overflow-hidden">
+      <div className="flex min-w-0 flex-1 items-center overflow-hidden">
         <span
           ref={textRef}
           className="font-bold leading-snug text-primary-foreground"
